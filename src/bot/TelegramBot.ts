@@ -345,6 +345,8 @@ TON Link:
 [Open in TON Wallet](${tonLink})
 
 Share this link or QR code with your customers to receive payment.
+
+⚠️ *After the expiration time, this payment request will no longer be tracked by the bot. Please create a new payment if needed. The QR code and link may still work, but the bot will not notify you about late payments.*
       `;
 
       await this.bot.sendMessage(chatId, paymentMessage, {
