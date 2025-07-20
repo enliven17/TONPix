@@ -3,9 +3,9 @@ export interface TelegramUser {
   id: number;
   is_bot: boolean;
   first_name: string;
-  last_name?: string;
-  username?: string;
-  language_code?: string;
+  last_name?: string | undefined;
+  username?: string | undefined;
+  language_code?: string | undefined;
 }
 
 export interface TelegramMessage {
@@ -14,19 +14,19 @@ export interface TelegramMessage {
   chat: {
     id: number;
     type: string;
-    title?: string;
-    username?: string;
+    title?: string | undefined;
+    username?: string | undefined;
   };
   date: number;
-  text?: string;
+  text?: string | undefined;
   reply_markup?: any;
 }
 
 export interface TelegramCallbackQuery {
   id: string;
   from: TelegramUser;
-  message?: TelegramMessage;
-  data?: string;
+  message?: TelegramMessage | undefined;
+  data?: string | undefined;
 }
 
 // Payment Types

@@ -3,18 +3,15 @@ import cors from 'cors';
 import helmet from 'helmet';
 import { TelegramBotService } from '@/bot/TelegramBot';
 import { validateConfig } from '@/config';
-import { Logger } from '@/utils/Logger';
 import { appConfig } from '@/config';
 
 class TONPixApp {
   private app: express.Application;
   private bot: TelegramBotService;
-  private logger: Logger;
 
   constructor() {
     this.app = express();
     this.bot = new TelegramBotService();
-    this.logger = new Logger('TONPixApp');
 
     this.setupMiddleware();
     this.setupRoutes();
@@ -38,7 +35,7 @@ class TONPixApp {
 
     // Request logging middleware
     this.app.use((req, res, next) => {
-      this.logger.info(`${req.method} ${req.path}`, {
+      console.log(`${req.method} ${req.path}`, {
         ip: req.ip,
         userAgent: req.get('User-Agent'),
         timestamp: new Date().toISOString()
@@ -70,8 +67,7 @@ class TONPixApp {
 
     // Bot webhook endpoint (if using webhooks)
     this.app.post('/webhook/telegram', (req, res) => {
-      // Handle Telegram webhook
-      this.bot.getBot().handleUpdate(req.body);
+      // Handle Telegram webhook - to be implemented
       res.sendStatus(200);
     });
 
@@ -84,7 +80,7 @@ class TONPixApp {
           message: 'Payment creation endpoint - to be implemented'
         });
       } catch (error) {
-        this.logger.error('Error in payment creation endpoint:', error);
+        console.error('Error in payment creation endpoint:', error);
         res.status(500).json({
           success: false,
           error: 'Internal server error'
@@ -103,7 +99,7 @@ class TONPixApp {
 
     // Error handler
     this.app.use((error: Error, req: express.Request, res: express.Response, next: express.NextFunction) => {
-      this.logger.error('Unhandled error:', error);
+      console.error('Unhandled error:', error);
       res.status(500).json({
         success: false,
         error: 'Internal server error'
@@ -121,7 +117,7 @@ class TONPixApp {
 
       // Start the Express server
       const server = this.app.listen(appConfig.port, () => {
-        this.logger.info(`TONPix server started on port ${appConfig.port}`, {
+        console.log(`TONPix server started on port ${appConfig.port}`, {
           environment: appConfig.nodeEnv,
           port: appConfig.port
         });
@@ -131,16 +127,16 @@ class TONPixApp {
       process.on('SIGTERM', () => this.gracefulShutdown(server));
       process.on('SIGINT', () => this.gracefulShutdown(server));
 
-      this.logger.info('TONPix application started successfully');
+      console.log('TONPix application started successfully');
 
     } catch (error) {
-      this.logger.error('Failed to start TONPix application:', error);
+      console.error('Failed to start TONPix application:', error);
       process.exit(1);
     }
   }
 
   private async gracefulShutdown(server: any): Promise<void> {
-    this.logger.info('Received shutdown signal, starting graceful shutdown...');
+    console.log('Received shutdown signal, starting graceful shutdown...');
 
     try {
       // Stop the bot
@@ -148,18 +144,18 @@ class TONPixApp {
 
       // Close the server
       server.close(() => {
-        this.logger.info('HTTP server closed');
+        console.log('HTTP server closed');
         process.exit(0);
       });
 
       // Force exit after 30 seconds
       setTimeout(() => {
-        this.logger.error('Forced shutdown after timeout');
+        console.error('Forced shutdown after timeout');
         process.exit(1);
       }, 30000);
 
     } catch (error) {
-      this.logger.error('Error during graceful shutdown:', error);
+      console.error('Error during graceful shutdown:', error);
       process.exit(1);
     }
   }

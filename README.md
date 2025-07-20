@@ -1,119 +1,211 @@
-# TONPix - QR-Based TON Payment Bot
+# 🤖 TONPix - TON Blockchain QR Payment Bot
 
-TONPix, küçük işletmeler için Telegram üzerinden TON blockchain ile QR kod tabanlı ödeme sistemi sağlayan bir bot uygulamasıdır.
+A Telegram bot for creating QR code-based payments using the TON blockchain. Built with TypeScript, Express.js, and modern development practices.
 
-## 🚀 Özellikler
+## 🚀 Features
 
-- **Telegram Bot Entegrasyonu**: Kolay kullanım için Telegram bot arayüzü
-- **QR Kod Ödemeleri**: Hızlı ve güvenli QR kod tabanlı ödemeler
-- **TON Blockchain**: Hızlı ve düşük maliyetli TON blockchain entegrasyonu
-- **Gerçek Zamanlı Bildirimler**: Anlık ödeme onayları
-- **Çoklu Token Desteği**: TON, jUSDT ve diğer TON token'ları
-- **Döviz Kuru Entegrasyonu**: Anlık döviz kuru hesaplamaları
+- **Telegram Bot Integration**: Easy-to-use bot interface
+- **QR Code Generation**: Generate TON payment QR codes
+- **Multi-Currency Support**: BRL, USD, EUR, TON
+- **TON Blockchain Integration**: Real-time payment verification
+- **Modular Architecture**: Clean, maintainable codebase
+- **TypeScript**: Full type safety
+- **Docker Support**: Easy deployment
+- **API Endpoints**: RESTful API for integrations
 
-## 🏗️ Proje Yapısı
+## 📋 Prerequisites
 
-```
-tonpix/
-├── src/
-│   ├── bot/              # Telegram bot logic
-│   ├── blockchain/       # TON blockchain integration
-│   ├── payment/          # Payment processing
-│   ├── qr/              # QR code generation
-│   ├── utils/           # Helper functions
-│   └── config/          # Configuration files
-├── tests/               # Test files
-├── docs/               # Documentation
-└── scripts/            # Deployment scripts
-```
+- Node.js 18+ 
+- npm or yarn
+- Telegram Bot Token (from @BotFather)
+- TON API Key (from toncenter.com)
 
-## 🛠️ Teknoloji Stack'i
+## 🛠️ Installation
 
-- **Backend**: Node.js + TypeScript
-- **Telegram Bot**: node-telegram-bot-api
-- **TON Blockchain**: @ton/ton, @ton/core
-- **QR Codes**: qrcode
-- **Database**: PostgreSQL (ödeme geçmişi için)
-- **API**: Express.js
-- **Testing**: Jest
-- **Deployment**: Docker + Railway/Vercel
-
-## 📋 Kurulum
-
-1. **Repository'yi klonlayın**
+1. **Clone the repository**
 ```bash
-git clone https://github.com/your-username/tonpix.git
+git clone https://github.com/yourusername/tonpix.git
 cd tonpix
 ```
 
-2. **Bağımlılıkları yükleyin**
+2. **Install dependencies**
 ```bash
 npm install
 ```
 
-3. **Environment variables'ları ayarlayın**
+3. **Set up environment variables**
 ```bash
-cp .env.example .env
-# .env dosyasını düzenleyin
+cp env.example .env
 ```
 
-4. **Bot'u çalıştırın**
+Edit `.env` file with your configuration:
+```env
+# Telegram Bot Configuration
+TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
+TELEGRAM_BOT_USERNAME=TONPixBot
+
+# TON Blockchain Configuration
+TON_NETWORK=testnet
+TON_API_KEY=your_ton_api_key_here
+TON_RPC_URL=https://testnet.toncenter.com/api/v2/jsonRPC
+TON_WALLET_ADDRESS=your_wallet_address_here
+
+# Server Configuration
+PORT=3000
+NODE_ENV=development
+```
+
+4. **Build the project**
+```bash
+npm run build
+```
+
+## 🚀 Usage
+
+### Development Mode
 ```bash
 npm run dev
 ```
 
-## 🔧 Environment Variables
-
-```env
-# Telegram Bot
-TELEGRAM_BOT_TOKEN=your_bot_token_here
-
-# TON Blockchain
-TON_NETWORK=mainnet # veya testnet
-TON_API_KEY=your_ton_api_key
-
-# Database
-DATABASE_URL=postgresql://...
-
-# Exchange Rate API
-EXCHANGE_API_KEY=your_exchange_api_key
+### Production Mode
+```bash
+npm start
 ```
 
-## 🚀 Kullanım
+### Docker Deployment
+```bash
+docker-compose up -d
+```
 
-1. Telegram'da @TONPixBot'u bulun
-2. `/start` komutunu gönderin
-3. "Ödeme Al" butonuna basın
-4. QR kodu tarayın veya TON adresini kopyalayın
-5. TON Wallet ile ödeme yapın
-6. Anlık onay alın!
+## 📱 Bot Commands
 
-## 📱 API Endpoints
+- `/start` - Main menu
+- `/help` - Help and commands
+- `/create_payment <amount> <currency>` - Create new payment
+- `/balance` - Check wallet balance
+- `/history` - View payment history
 
-- `POST /api/payments/create` - Yeni ödeme oluştur
-- `GET /api/payments/:id` - Ödeme durumu sorgula
-- `GET /api/transactions/:address` - TON işlem geçmişi
+### Examples
+```
+/create_payment 10 BRL
+/create_payment 5 USD
+/create_payment 100 EUR
+```
 
-## 🧪 Test
+## 🏗️ Project Structure
+
+```
+src/
+├── bot/           # Telegram bot service
+├── blockchain/    # TON blockchain integration
+├── config/        # Configuration management
+├── payment/       # Payment management
+├── qr/           # QR code generation
+├── types/        # TypeScript types
+├── utils/        # Utility functions
+└── index.ts      # Main application
+```
+
+## 🔧 Configuration
+
+### Environment Variables
+
+| Variable | Description | Default |
+|----------|-------------|---------|
+| `TELEGRAM_BOT_TOKEN` | Telegram bot token | Required |
+| `TON_API_KEY` | TON Center API key | Required |
+| `TON_NETWORK` | TON network (testnet/mainnet) | testnet |
+| `PORT` | Server port | 3000 |
+| `NODE_ENV` | Environment | development |
+
+### API Endpoints
+
+- `GET /health` - Health check
+- `GET /api/status` - API status
+- `POST /api/payments/create` - Create payment
+- `GET /api/payments/:id` - Get payment status
+
+## 🧪 Testing
 
 ```bash
+# Run tests
 npm test
+
+# Run tests with coverage
+npm run test:coverage
+
+# Run tests in watch mode
+npm run test:watch
 ```
 
-## 📄 Lisans
+## 📦 Docker
 
-MIT License
+### Build Image
+```bash
+docker build -t tonpix .
+```
 
-## 🤝 Katkıda Bulunma
+### Run Container
+```bash
+docker run -p 3000:3000 --env-file .env tonpix
+```
 
-1. Fork edin
-2. Feature branch oluşturun (`git checkout -b feature/amazing-feature`)
-3. Commit edin (`git commit -m 'Add amazing feature'`)
-4. Push edin (`git push origin feature/amazing-feature`)
-5. Pull Request açın
+### Docker Compose
+```bash
+docker-compose up -d
+```
 
-## 📞 İletişim
+## 🔒 Security
 
-- Telegram: @TONPixBot
-- Email: support@tonpix.com
-- Website: https://tonpix.com 
+- Environment variables for sensitive data
+- Input validation and sanitization
+- Rate limiting on API endpoints
+- CORS configuration
+- Helmet.js for security headers
+
+## 📊 Monitoring
+
+- Winston logging
+- Health check endpoints
+- Error tracking
+- Performance monitoring
+
+## 🤝 Contributing
+
+1. Fork the repository
+2. Create a feature branch
+3. Make your changes
+4. Add tests
+5. Submit a pull request
+
+## 📄 License
+
+This project is licensed under the MIT License - see the [LICENSE](LICENSE) file for details.
+
+## 🆘 Support
+
+- **Documentation**: [docs/](docs/)
+- **Issues**: [GitHub Issues](https://github.com/yourusername/tonpix/issues)
+- **Telegram**: @TONPixSupport
+- **Email**: support@tonpix.com
+
+## 🎯 Roadmap
+
+- [ ] Real-time payment verification
+- [ ] QR code image generation
+- [ ] Database integration
+- [ ] Telegram Mini-App
+- [ ] Multi-language support
+- [ ] Advanced analytics
+- [ ] Webhook support
+- [ ] Admin dashboard
+
+## 🙏 Acknowledgments
+
+- [TON Foundation](https://ton.org/)
+- [Telegram Bot API](https://core.telegram.org/bots/api)
+- [TON Center](https://toncenter.com/)
+
+---
+
+**Made with ❤️ for the TON ecosystem** 

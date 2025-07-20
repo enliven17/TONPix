@@ -1,28 +1,14 @@
 import TelegramBot from 'node-telegram-bot-api';
-import { BotConfig, TelegramMessage, TelegramCallbackQuery } from '@/types';
 import { botConfig } from '@/config';
-import { PaymentService } from '@/payment/PaymentService';
-import { QRService } from '@/qr/QRService';
-import { NotificationService } from '@/utils/NotificationService';
-import { Logger } from '@/utils/Logger';
 
 export class TelegramBotService {
   private bot: TelegramBot;
-  private paymentService: PaymentService;
-  private qrService: QRService;
-  private notificationService: NotificationService;
-  private logger: Logger;
 
   constructor() {
     this.bot = new TelegramBot(botConfig.token, {
       polling: botConfig.polling,
       webHook: botConfig.webhookUrl ? { port: 8443 } : undefined,
     });
-
-    this.paymentService = new PaymentService();
-    this.qrService = new QRService();
-    this.notificationService = new NotificationService(this.bot);
-    this.logger = new Logger('TelegramBot');
 
     this.setupEventHandlers();
   }
@@ -52,53 +38,61 @@ export class TelegramBotService {
     // Handle polling errors
     this.bot.on('polling_error', this.handlePollingError.bind(this));
 
-    this.logger.info('Telegram bot event handlers setup completed');
+    console.log('Telegram bot event handlers setup completed');
   }
 
-  private async handleStart(msg: TelegramMessage): Promise<void> {
+  private async handleStart(msg: any): Promise<void> {
     try {
+      console.log('handleStart çağrıldı. Gelen mesaj:', JSON.stringify(msg, null, 2));
+      if (!msg) {
+        console.error('Gelen msg nesnesi undefined veya null!');
+        return;
+      }
+      if (!msg.chat) {
+        console.error('msg.chat alanı yok! Gelen msg:', JSON.stringify(msg, null, 2));
+        return;
+      }
+      if (!msg.from) {
+        console.error('msg.from alanı yok! Gelen msg:', JSON.stringify(msg, null, 2));
+        return;
+      }
       const chatId = msg.chat.id;
       const user = msg.from;
 
-      if (!user) {
-        this.logger.error('No user information in start message');
-        return;
-      }
-
-      this.logger.info(`User ${user.id} (${user.first_name}) started the bot`);
+      console.log(`Kullanıcı: ${user.id}, Ad: ${user.first_name}`);
 
       const welcomeMessage = `
-🤖 **TONPix'e Hoş Geldiniz!**
+🤖 **Welcome to TONPix!**
 
-Merhaba ${user.first_name}! TONPix, TON blockchain ile QR kod tabanlı ödeme sistemi sağlar.
+Hello ${user.first_name}! TONPix provides QR code-based payment system with TON blockchain.
 
-**Kullanılabilir Komutlar:**
-• /create_payment <miktar> - Yeni ödeme oluştur
-• /balance - Cüzdan bakiyenizi görüntüle
-• /history - Ödeme geçmişinizi görüntüle
-• /help - Yardım menüsü
+**Available Commands:**
+• /create_payment <amount> - Create new payment
+• /balance - View wallet balance
+• /history - View payment history
+• /help - Help menu
 
-**Hızlı Başlangıç:**
-1. "Ödeme Al" butonuna basın
-2. Miktarı girin (örn: 10 BRL)
-3. QR kodu tarayın
-4. TON Wallet ile ödeme yapın
+**Quick Start:**
+1. Click "Receive Payment" button
+2. Enter amount (e.g., 10 BRL)
+3. Scan QR code
+4. Make payment with TON Wallet
 
-Başlamak için aşağıdaki butonları kullanabilirsiniz:
+Use the buttons below to get started:
       `;
 
       const keyboard = {
         inline_keyboard: [
           [
-            { text: '💰 Ödeme Al', callback_data: 'create_payment' },
-            { text: '💳 Bakiye', callback_data: 'balance' }
+            { text: '💰 Receive Payment', callback_data: 'create_payment' },
+            { text: '💳 Balance', callback_data: 'balance' }
           ],
           [
-            { text: '📊 Geçmiş', callback_data: 'history' },
-            { text: '❓ Yardım', callback_data: 'help' }
+            { text: '📊 History', callback_data: 'history' },
+            { text: '❓ Help', callback_data: 'help' }
           ],
           [
-            { text: '⚙️ Ayarlar', callback_data: 'settings' }
+            { text: '⚙️ Settings', callback_data: 'settings' }
           ]
         ]
       };
@@ -109,41 +103,42 @@ Başlamak için aşağıdaki butonları kullanabilirsiniz:
       });
 
     } catch (error) {
-      this.logger.error('Error in handleStart:', error);
-      await this.sendErrorMessage(msg.chat.id);
+      console.error('handleStart fonksiyonunda hata oluştu:', error);
+      console.error('Hatalı gelen mesaj:', JSON.stringify(msg, null, 2));
+      await this.sendErrorMessage(msg?.chat?.id);
     }
   }
 
-  private async handleHelp(msg: TelegramMessage): Promise<void> {
+  private async handleHelp(msg: any): Promise<void> {
     try {
       const chatId = msg.chat.id;
 
       const helpMessage = `
-📚 **TONPix Yardım Menüsü**
+📚 **TONPix Help Menu**
 
-**Temel Komutlar:**
-• \`/start\` - Ana menüyü aç
-• \`/create_payment <miktar>\` - Yeni ödeme oluştur
-• \`/balance\` - Cüzdan bakiyenizi görüntüle
-• \`/history\` - Ödeme geçmişinizi görüntüle
+**Basic Commands:**
+• \`/start\` - Open main menu
+• \`/create_payment <amount>\` - Create new payment
+• \`/balance\` - View wallet balance
+• \`/history\` - View payment history
 
-**Örnek Kullanım:**
-• \`/create_payment 10 BRL\` - 10 BRL değerinde ödeme oluştur
-• \`/create_payment 5 USD\` - 5 USD değerinde ödeme oluştur
-• \`/create_payment 100 EUR\` - 100 EUR değerinde ödeme oluştur
+**Usage Examples:**
+• \`/create_payment 10 BRL\` - Create payment worth 10 BRL
+• \`/create_payment 5 USD\` - Create payment worth 5 USD
+• \`/create_payment 100 EUR\` - Create payment worth 100 EUR
 
-**Desteklenen Para Birimleri:**
-• BRL (Brezilya Reali)
-• USD (Amerikan Doları)
+**Supported Currencies:**
+• BRL (Brazilian Real)
+• USD (US Dollar)
 • EUR (Euro)
 • TON (TON Coin)
 
-**Desteklenen Token'lar:**
+**Supported Tokens:**
 • TON (TON Coin)
 • jUSDT (Jetton USDT)
 
-**Sorun mu yaşıyorsunuz?**
-• Teknik destek: @TONPixSupport
+**Need Help?**
+• Technical support: @TONPixSupport
 • Email: support@tonpix.com
       `;
 
@@ -152,12 +147,12 @@ Başlamak için aşağıdaki butonları kullanabilirsiniz:
       });
 
     } catch (error) {
-      this.logger.error('Error in handleHelp:', error);
+      console.error('Error in handleHelp:', error);
       await this.sendErrorMessage(msg.chat.id);
     }
   }
 
-  private async handleCreatePayment(msg: TelegramMessage): Promise<void> {
+  private async handleCreatePayment(msg: any): Promise<void> {
     try {
       const chatId = msg.chat.id;
       const text = msg.text || '';
@@ -176,23 +171,22 @@ Başlamak için aşağıdaki butonları kullanabilirsiniz:
       await this.createPayment(chatId, amount, currency);
 
     } catch (error) {
-      this.logger.error('Error in handleCreatePayment:', error);
+      console.error('Error in handleCreatePayment:', error);
       await this.sendErrorMessage(msg.chat.id);
     }
   }
 
-  private async handleBalance(msg: TelegramMessage): Promise<void> {
+  private async handleBalance(msg: any): Promise<void> {
     try {
       const chatId = msg.chat.id;
       
-      // This would integrate with TON blockchain to get actual balance
       const balanceMessage = `
-💳 **Cüzdan Bakiyeniz**
+💳 **Wallet Balance**
 
-**TON Network:** ${botConfig.network || 'testnet'}
-**Adres:** \`${botConfig.walletAddress || 'Henüz ayarlanmadı'}\`
+**TON Network:** testnet
+**Address:** \`EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t\`
 
-*Bakiye sorgulama özelliği yakında eklenecek...*
+*Balance query feature coming soon...*
       `;
 
       await this.bot.sendMessage(chatId, balanceMessage, {
@@ -200,24 +194,24 @@ Başlamak için aşağıdaki butonları kullanabilirsiniz:
       });
 
     } catch (error) {
-      this.logger.error('Error in handleBalance:', error);
+      console.error('Error in handleBalance:', error);
       await this.sendErrorMessage(msg.chat.id);
     }
   }
 
-  private async handleHistory(msg: TelegramMessage): Promise<void> {
+  private async handleHistory(msg: any): Promise<void> {
     try {
       const chatId = msg.chat.id;
       
       const historyMessage = `
-📊 **Ödeme Geçmişi**
+📊 **Payment History**
 
-*Ödeme geçmişi özelliği yakında eklenecek...*
+*Payment history feature coming soon...*
 
-Bu özellik ile:
-• Tüm ödemelerinizi görüntüleyebilirsiniz
-• İşlem detaylarını inceleyebilirsiniz
-• Filtreleme ve arama yapabilirsiniz
+With this feature you will be able to:
+• View all your payments
+• Check transaction details
+• Filter and search payments
       `;
 
       await this.bot.sendMessage(chatId, historyMessage, {
@@ -225,18 +219,18 @@ Bu özellik ile:
       });
 
     } catch (error) {
-      this.logger.error('Error in handleHistory:', error);
+      console.error('Error in handleHistory:', error);
       await this.sendErrorMessage(msg.chat.id);
     }
   }
 
-  private async handleCallbackQuery(query: TelegramCallbackQuery): Promise<void> {
+  private async handleCallbackQuery(query: any): Promise<void> {
     try {
       const chatId = query.message?.chat.id;
       const data = query.data;
 
       if (!chatId || !data) {
-        this.logger.error('Invalid callback query data');
+        console.error('Invalid callback query data');
         return;
       }
 
@@ -248,13 +242,13 @@ Bu özellik ile:
           await this.showPaymentAmountPrompt(chatId);
           break;
         case 'balance':
-          await this.handleBalance({ chat: { id: chatId } } as TelegramMessage);
+          await this.handleBalance({ chat: { id: chatId } });
           break;
         case 'history':
-          await this.handleHistory({ chat: { id: chatId } } as TelegramMessage);
+          await this.handleHistory({ chat: { id: chatId } });
           break;
         case 'help':
-          await this.handleHelp({ chat: { id: chatId } } as TelegramMessage);
+          await this.handleHelp({ chat: { id: chatId } });
           break;
         case 'settings':
           await this.showSettings(chatId);
@@ -267,25 +261,25 @@ Bu özellik ile:
       }
 
     } catch (error) {
-      this.logger.error('Error in handleCallbackQuery:', error);
+      console.error('Error in handleCallbackQuery:', error);
       await this.sendErrorMessage(query.message?.chat.id);
     }
   }
 
   private async showPaymentAmountPrompt(chatId: number): Promise<void> {
     const message = `
-💰 **Ödeme Oluştur**
+💰 **Create Payment**
 
-Lütfen ödeme miktarını ve para birimini girin:
+Please enter the payment amount and currency:
 
-**Format:** \`/create_payment <miktar> <para_birimi>\`
+**Format:** \`/create_payment <amount> <currency>\`
 
-**Örnekler:**
+**Examples:**
 • \`/create_payment 10 BRL\`
 • \`/create_payment 5 USD\`
 • \`/create_payment 100 EUR\`
 
-**Veya aşağıdaki hızlı seçenekleri kullanın:**
+**Or use the quick options below:**
       `;
 
     const keyboard = {
@@ -300,9 +294,9 @@ Lütfen ödeme miktarını ve para birimini girin:
           { text: '10 USD', callback_data: 'payment_amount_10_USD' },
           { text: '100 EUR', callback_data: 'payment_amount_100_EUR' }
         ],
-        [
-          { text: '🔙 Geri', callback_data: 'back_to_main' }
-        ]
+                  [
+            { text: '🔙 Back', callback_data: 'back_to_main' }
+          ]
       ]
     };
 
@@ -323,91 +317,89 @@ Lütfen ödeme miktarını ve para birimini girin:
 
   private async createPayment(chatId: number, amount: number, currency: string): Promise<void> {
     try {
-      this.logger.info(`Creating payment: ${amount} ${currency} for chat ${chatId}`);
+      console.log(`Creating payment: ${amount} ${currency} for chat ${chatId}`);
 
-      // Create payment using PaymentService
-      const payment = await this.paymentService.createPayment({
-        merchantId: chatId,
-        amount,
-        currency,
-        tokenType: 'TON'
-      });
+      // Create mock payment for demo
+      const paymentId = `payment_${Date.now()}`;
+      const tokenAmount = amount * 0.00015; // Mock exchange rate
+      const tonAddress = 'EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t';
 
-      // Generate QR code
-      const qrCode = await this.qrService.generateQRCode(payment);
+      // Create QR code data
+      const tonLink = `ton://transfer/${tonAddress}?amount=${tokenAmount}&text=Payment for ${amount} ${currency}`;
+      
+      // For demo, we'll create a simple text representation
+      const qrCodeText = `
+QR Code Data:
+${tonLink}
+      `;
 
       // Send payment information
       const paymentMessage = `
-💳 **Ödeme Oluşturuldu**
+💳 **Payment Created**
 
-**Miktar:** ${amount} ${currency}
-**TON Karşılığı:** ${payment.tokenAmount} ${payment.tokenType}
-**Durum:** ${payment.status === 'pending' ? '⏳ Bekleniyor' : '✅ Tamamlandı'}
-**Süre:** ${new Date(payment.expiresAt).toLocaleString('tr-TR')}
+**Amount:** ${amount} ${currency}
+**TON Equivalent:** ${tokenAmount} TON
+**Status:** ⏳ Pending
+**Expires:** ${new Date(Date.now() + 15 * 60 * 1000).toLocaleString('en-US')}
 
-**TON Adresi:**
-\`${payment.tonAddress}\`
+**TON Address:**
+\`${tonAddress}\`
 
-QR kodu tarayarak veya adresi kopyalayarak ödeme yapabilirsiniz.
+**QR Code Data:**
+\`${tonLink}\`
+
+You can make payment by scanning the QR code or copying the address.
       `;
 
-      // Send message with QR code
-      await this.bot.sendPhoto(chatId, qrCode, {
-        caption: paymentMessage,
+      // Send message with payment info
+      await this.bot.sendMessage(chatId, paymentMessage, {
         parse_mode: 'Markdown'
       });
 
-      // Send additional options
-      const optionsMessage = `
-**Ek Seçenekler:**
-• QR kodu yeniden oluştur
-• Ödeme durumunu kontrol et
-• İptal et
+      // Send QR code instructions
+      const qrInstructions = `
+📱 **QR Code Usage:**
+
+1. Copy the TON link above
+2. Open TON Wallet app
+3. Click "Transfer" option
+4. Paste the address and check the amount
+5. Confirm the payment
+
+**To get Testnet TON:**
+https://t.me/testgiver_ton_bot
       `;
 
-      const keyboard = {
-        inline_keyboard: [
-          [
-            { text: '🔄 QR Yenile', callback_data: `refresh_qr_${payment.id}` },
-            { text: '📊 Durum', callback_data: `check_status_${payment.id}` }
-          ],
-          [
-            { text: '❌ İptal', callback_data: `cancel_payment_${payment.id}` }
-          ]
-        ]
-      };
-
-      await this.bot.sendMessage(chatId, optionsMessage, {
-        parse_mode: 'Markdown',
-        reply_markup: keyboard
+      await this.bot.sendMessage(chatId, qrInstructions, {
+        parse_mode: 'Markdown'
       });
 
     } catch (error) {
-      this.logger.error('Error creating payment:', error);
+      console.error('Error creating payment:', error);
       await this.sendErrorMessage(chatId);
     }
   }
 
   private async showSettings(chatId: number): Promise<void> {
     const settingsMessage = `
-⚙️ **Ayarlar**
+⚙️ **Settings**
 
-**Bot Ayarları:**
-• Bildirimler: ✅ Açık
-• Dil: 🇹🇷 Türkçe
-• Zaman Dilimi: UTC+3
+**Bot Settings:**
+• Notifications: ✅ Enabled
+• Language: 🇺🇸 English
+• Timezone: UTC+0
 
-**Cüzdan Ayarları:**
-• TON Adresi: ${botConfig.walletAddress || 'Henüz ayarlanmadı'}
-• Ağ: ${botConfig.network || 'testnet'}
+**Wallet Settings:**
+• TON Address: EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t
+• Network: testnet
 
-*Ayarlar menüsü yakında eklenecek...*
+*Settings menu coming soon...*
       `;
 
     const keyboard = {
       inline_keyboard: [
         [
-          { text: '🔙 Ana Menü', callback_data: 'back_to_main' }
+          { text: '🔙 Main Menu', callback_data: 'back_to_main' }
         ]
       ]
     };
@@ -419,22 +411,22 @@ QR kodu tarayarak veya adresi kopyalayarak ödeme yapabilirsiniz.
   }
 
   private async handleError(error: Error): Promise<void> {
-    this.logger.error('Telegram bot error:', error);
+    console.error('Telegram bot error:', error);
   }
 
   private async handlePollingError(error: Error): Promise<void> {
-    this.logger.error('Telegram bot polling error:', error);
+    console.error('Telegram bot polling error:', error);
   }
 
   private async sendErrorMessage(chatId?: number): Promise<void> {
     if (!chatId) return;
 
     const errorMessage = `
-❌ **Bir hata oluştu**
+❌ **An error occurred**
 
-Üzgünüz, bir hata oluştu. Lütfen daha sonra tekrar deneyin.
+Sorry, an error occurred. Please try again later.
 
-Eğer sorun devam ederse, destek ekibimizle iletişime geçin:
+If the problem persists, contact our support team:
 • @TONPixSupport
 • support@tonpix.com
       `;
@@ -444,7 +436,7 @@ Eğer sorun devam ederse, destek ekibimizle iletişime geçin:
         parse_mode: 'Markdown'
       });
     } catch (sendError) {
-      this.logger.error('Error sending error message:', sendError);
+      console.error('Error sending error message:', sendError);
     }
   }
 
@@ -452,14 +444,14 @@ Eğer sorun devam ederse, destek ekibimizle iletişime geçin:
     try {
       if (botConfig.webhookUrl) {
         await this.bot.setWebHook(botConfig.webhookUrl);
-        this.logger.info(`Webhook set to: ${botConfig.webhookUrl}`);
+        console.log(`Webhook set to: ${botConfig.webhookUrl}`);
       } else {
-        this.logger.info('Starting bot with polling...');
+        console.log('Starting bot with polling...');
       }
 
-      this.logger.info('TONPix Telegram bot started successfully');
+      console.log('TONPix Telegram bot started successfully');
     } catch (error) {
-      this.logger.error('Error starting bot:', error);
+      console.error('Error starting bot:', error);
       throw error;
     }
   }
@@ -467,9 +459,9 @@ Eğer sorun devam ederse, destek ekibimizle iletişime geçin:
   public async stop(): Promise<void> {
     try {
       await this.bot.stopPolling();
-      this.logger.info('TONPix Telegram bot stopped');
+      console.log('TONPix Telegram bot stopped');
     } catch (error) {
-      this.logger.error('Error stopping bot:', error);
+      console.error('Error stopping bot:', error);
     }
   }
 
