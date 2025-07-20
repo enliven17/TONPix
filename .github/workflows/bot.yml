@@ -4,6 +4,9 @@ on:
   push:
     branches: [ main ]
   workflow_dispatch:
+  schedule:
+    # Her 5 dakikada bir çalıştır
+    - cron: '*/5 * * * *'
 
 jobs:
   run-bot:
@@ -29,4 +32,6 @@ jobs:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TON_WALLET_ADDRESS: ${{ secrets.TON_WALLET_ADDRESS }}
         NODE_ENV: production
-      run: npm start 
+      run: |
+        # Bot'u 5 dakika çalıştır, sonra durdur
+        timeout 300 npm start || true 
