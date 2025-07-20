@@ -275,16 +275,26 @@ Use the buttons below to get started:`;
           try {
             const amount = parseFloat(tx.in?.amount || '0') / 1e9;
             const time = new Date((tx.time || Date.now() / 1000) * 1000).toLocaleString();
-            const source = tx.in?.source || 'unknown';
+            
+            // Extract sender address properly
+            let senderAddress = 'unknown';
+            if (tx.in?.source) {
+              if (typeof tx.in.source === 'string') {
+                senderAddress = tx.in.source;
+              } else if (tx.in.source.address) {
+                senderAddress = tx.in.source.address;
+              }
+            }
+            
             const hash = tx.hash || 'unknown';
             
-            historyMessage += `${index + 1}. **${amount} TON**\n`;
-            historyMessage += `   From: \`${source}\`\n`;
-            historyMessage += `   Time: ${time}\n`;
-            historyMessage += `   Hash: \`${hash}\`\n\n`;
+            historyMessage += `${index + 1}. 💰 **${amount} TON**\n`;
+            historyMessage += `   👤 From: \`${senderAddress}\`\n`;
+            historyMessage += `   ⏰ Time: ${time}\n`;
+            historyMessage += `   🔗 Hash: \`${hash}\`\n\n`;
           } catch (txError) {
             console.error('Error processing transaction:', txError);
-            historyMessage += `${index + 1}. **Error processing transaction**\n\n`;
+            historyMessage += `${index + 1}. ❌ **Error processing transaction**\n\n`;
           }
         });
 
@@ -627,7 +637,27 @@ If the problem persists, contact our support team:
           if (tx.in?.amount && !payment.notifiedTxHashes.includes(tx.hash) && txTime >= payment.createdAt) {
             // New IN transaction found - send notification
             console.log(`[DEBUG] New IN transaction found: ${tx.hash}, amount: ${incomingAmount} TON, txTime: ${new Date(txTime).toLocaleString()}, createdAt: ${new Date(payment.createdAt).toLocaleString()}`);
-            await this.bot.sendMessage(payment.chatId, `✅ Payment received!\nAmount: ${incomingAmount} TON\nFrom: ${tx.in?.source || 'unknown'}\nTime: ${new Date(txTime).toLocaleString()}\nHash: ${tx.hash}`);
+            
+            // Extract sender address properly
+            let senderAddress = 'unknown';
+            if (tx.in?.source) {
+              if (typeof tx.in.source === 'string') {
+                senderAddress = tx.in.source;
+              } else if (tx.in.source.address) {
+                senderAddress = tx.in.source.address;
+              }
+            }
+            
+            await this.bot.sendMessage(payment.chatId, `🎉 **Payment Received!** 🎉
+
+💰 **Amount:** ${incomingAmount} TON
+👤 **From:** \`${senderAddress}\`
+⏰ **Time:** ${new Date(txTime).toLocaleString()}
+🔗 **Hash:** \`${tx.hash}\`
+
+✅ Your payment has been successfully received!`, {
+              parse_mode: 'Markdown'
+            });
             payment.notifiedTxHashes.push(tx.hash);
           } else if (tx.in?.amount && !payment.notifiedTxHashes.includes(tx.hash)) {
             console.log(`[DEBUG] Skipping old transaction: ${tx.hash}, txTime: ${new Date(txTime).toLocaleString()}, createdAt: ${new Date(payment.createdAt).toLocaleString()}`);
