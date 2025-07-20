@@ -27,11 +27,33 @@ jobs:
     - name: Build project
       run: npm run build
     
+    - name: Check environment variables
+      run: |
+        echo "Checking environment variables..."
+        if [ -z "${{ secrets.TELEGRAM_BOT_TOKEN }}" ]; then
+          echo "❌ TELEGRAM_BOT_TOKEN is not set"
+          exit 1
+        else
+          echo "✅ TELEGRAM_BOT_TOKEN is set"
+        fi
+        
+        if [ -z "${{ secrets.TON_WALLET_ADDRESS }}" ]; then
+          echo "❌ TON_WALLET_ADDRESS is not set"
+          exit 1
+        else
+          echo "✅ TON_WALLET_ADDRESS is set"
+        fi
+    
     - name: Run bot
       env:
         TELEGRAM_BOT_TOKEN: ${{ secrets.TELEGRAM_BOT_TOKEN }}
         TON_WALLET_ADDRESS: ${{ secrets.TON_WALLET_ADDRESS }}
         NODE_ENV: production
       run: |
+        echo "Starting bot..."
+        echo "NODE_ENV: $NODE_ENV"
+        echo "Bot token length: ${#TELEGRAM_BOT_TOKEN}"
+        echo "Wallet address: $TON_WALLET_ADDRESS"
+        
         # Bot'u 5 dakika çalıştır, sonra durdur
-        timeout 300 npm start || true 
+        timeout 300 npm start || echo "Bot stopped after timeout" 
