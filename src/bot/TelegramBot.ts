@@ -108,7 +108,7 @@ Use the buttons below to get started:`;
       const keyboard = {
         inline_keyboard: [
           [
-            { text: '💰 Receive Payment', callback_data: 'create_payment' },
+            { text: '💰 Receive Payment (TON/USD/EUR/BRL)', callback_data: 'create_payment' },
             { text: '💳 Balance', callback_data: 'balance' }
           ],
           [
@@ -350,16 +350,22 @@ Use the buttons below to get started:`;
   }
 
   private async showPaymentAmountPrompt(chatId: number): Promise<void> {
-    const message = `💰 Create Payment
+    const message = `💰 **Create Payment**
 
-Please enter the payment amount in TON:
+You can receive payments in TON or fiat currencies (USD, EUR, BRL) which will be automatically converted to TON.
 
-Format: /create_payment <amount>
+**TON Payments:**
+Format: \`/create_payment <amount>\`
 
-Examples:
-• /create_payment 10
-• /create_payment 5.5
-• /create_payment 100
+**Fiat Payments:**
+Format: \`/create_payment <amount> <currency>\`
+
+**Examples:**
+• \`/create_payment 10\` (TON)
+• \`/create_payment 5.5\` (TON)
+• \`/create_payment 50 USD\`
+• \`/create_payment 100 EUR\`
+• \`/create_payment 200 BRL\`
 
 Or use the quick options below:`;
 
@@ -376,12 +382,18 @@ Or use the quick options below:`;
           { text: '100 TON', callback_data: 'payment_amount_100_TON' }
         ],
         [
+          { text: '50 USD', callback_data: 'payment_amount_50_USD' },
+          { text: '100 EUR', callback_data: 'payment_amount_100_EUR' },
+          { text: '200 BRL', callback_data: 'payment_amount_200_BRL' }
+        ],
+        [
           { text: '🔙 Back', callback_data: 'back_to_main' }
         ]
       ]
     };
 
     await this.bot.sendMessage(chatId, message, {
+      parse_mode: 'Markdown',
       reply_markup: keyboard
     });
   }
