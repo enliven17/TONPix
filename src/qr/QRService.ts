@@ -282,6 +282,10 @@ export class QRService {
     return this.tonService.createDeepLink(payment);
   }
 
+  public async getTransactions(address: string, limit: number): Promise<any[]> {
+    return this.tonService.getTransactions(address, limit);
+  }
+
   private constructTONDeepLink(deepLink: TONDeepLink): string {
     const { address, amount, text, jetton } = deepLink;
     

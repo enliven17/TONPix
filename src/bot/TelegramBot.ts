@@ -3,12 +3,24 @@ import { botConfig } from '@/config';
 import { PaymentService } from '@/payment/PaymentService';
 import { QRService } from '@/qr/QRService';
 import QRCode from 'qrcode';
+import { ExchangeRateService } from '@/utils/ExchangeRateService';
+
+interface PendingPayment {
+  chatId: number;
+  address: string;
+  amount: number;
+  expiresAt: number;
+  notified: boolean;
+}
 
 export class TelegramBotService {
   private bot: TelegramBot;
   private paymentService: PaymentService;
   private qrService: QRService;
   private userAddresses: Map<number, string> = new Map(); // chatId -> TON address
+  private pendingPayments: PendingPayment[] = [];
+  private paymentCheckInterval: NodeJS.Timeout | null = null;
+  private exchangeRateService: ExchangeRateService;
 
   constructor() {
     this.bot = new TelegramBot(botConfig.token, {
@@ -17,6 +29,7 @@ export class TelegramBotService {
     });
     this.paymentService = new PaymentService();
     this.qrService = new QRService();
+    this.exchangeRateService = new ExchangeRateService();
     this.setupEventHandlers();
   }
 
@@ -56,13 +69,25 @@ export class TelegramBotService {
       const chatId = msg.chat.id;
       const user = msg.from;
 
-      const welcomeMessage = `🤖 Welcome to TONPix!
+      const welcomeMessage = `
+Hello ${user.first_name}! 👋
 
-Hello ${user.first_name}! TONPix provides QR code-based payment system with TON blockchain.
+🤖 Welcome to TONPix!
+
+You can create payment requests in TON or fiat currencies (USD, EUR, BRL).
+
+Examples:
+• /create_payment 5 TON
+• /create_payment 10 USD
+• /create_payment 100 BRL
+
+The bot will automatically calculate the TON equivalent using the latest exchange rate.
+
+To get Testnet TON: @testgiver_ton_bot
 
 Available Commands:
 • /set_address <address> - Set your TON address
-• /create_payment <amount> - Create new payment (in TON)
+• /create_payment <amount> <currency> - Create new payment (in TON or fiat)
 • /balance - View wallet balance
 • /history - View payment history
 • /help - Help menu
@@ -70,7 +95,7 @@ Available Commands:
 Quick Start:
 1. Set your TON address: /set_address <your_address>
 2. Click "💰 Receive Payment" button
-3. Enter amount (e.g., 10 TON)
+3. Enter amount (e.g., 10 USD or 5 TON)
 4. Share QR code with customers
 
 Use the buttons below to get started:`;
@@ -151,8 +176,8 @@ Use the buttons below to get started:`;
       const chatId = msg.chat.id;
       const text = msg.text || '';
 
-      // Extract amount from command (only TON)
-      const match = text.match(/\/create_payment\s+(\d+(?:\.\d+)?)/);
+      // Extract amount and optional currency
+      const match = text.match(/\/create_payment\s+(\d+(?:\.\d+)?)(?:\s*([A-Z]{3}))?/i);
       
       if (!match) {
         await this.showPaymentAmountPrompt(chatId);
@@ -160,7 +185,10 @@ Use the buttons below to get started:`;
       }
 
       const amount = parseFloat(match[1]);
-      const currency = 'TON'; // Always TON
+      let currency = 'TON';
+      if (match[2]) {
+        currency = match[2].toUpperCase();
+      }
 
       await this.createPayment(chatId, amount, currency);
 
@@ -317,26 +345,36 @@ Or use the quick options below:`;
         return;
       }
 
+      let tonAmount = amount;
+      let originalAmountMsg = '';
+      if (currency !== 'TON') {
+        // Convert to TON
+        const rate = await this.exchangeRateService.getExchangeRate(currency, 'TON');
+        tonAmount = parseFloat((amount * rate).toFixed(6));
+        originalAmountMsg = `Original: ${amount} ${currency}\nTON Equivalent: ${tonAmount} TON`;
+      }
+
       // Create payment for user's address
-      const paymentId = `payment_${Date.now()}`;
-      const tokenAmount = amount; // Direct TON amount
+      const expiresAt = Date.now() + 15 * 60 * 1000;
+      this.pendingPayments.push({
+        chatId,
+        address: userAddress,
+        amount: tonAmount,
+        expiresAt,
+        notified: false
+      });
 
       // Create QR code data
-      const tonLink = `ton://transfer/${userAddress}?amount=${tokenAmount * 1000000000}&text=Payment for ${amount} TON`;
-
-      // QR kodu oluştur
+      const tonLink = `ton://transfer/${userAddress}?amount=${tonAmount * 1000000000}&text=Payment for ${tonAmount} TON`;
       const qrCodeDataUrl = await QRCode.toDataURL(tonLink, { width: 256, margin: 2 });
-      
-      // Base64'ten Buffer'a çevir
       const qrCodeBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
 
       // Send payment information
       const paymentMessage = `
 💳 Payment Created
 
-Amount: ${amount} TON
-Status: ⏳ Pending
-Expires: ${new Date(Date.now() + 15 * 60 * 1000).toLocaleString('en-US')}
+${originalAmountMsg ? originalAmountMsg + '\n' : ''}Status: ⏳ Pending
+Expires: ${new Date(expiresAt).toLocaleString('en-US')}
 
 Your TON Address:
 \`${userAddress}\`
@@ -368,9 +406,6 @@ Share this link or QR code with your customers to receive payment.
 3. 📷 Scan the QR code above with your camera
 4. ✅ Check the amount and address
 5. 💰 Confirm the payment
-
-To get Testnet TON:
-@testgiver_ton_bot
       `;
 
       await this.bot.sendMessage(chatId, qrInstructions, {
@@ -485,7 +520,8 @@ If the problem persists, contact our support team:
       } else {
         console.log('Starting bot with polling...');
       }
-
+      // Start payment check interval - check every 5 seconds instead of 10
+      this.paymentCheckInterval = setInterval(() => this.checkPendingPayments(), 5000);
       console.log('TONPix Telegram bot started successfully');
     } catch (error) {
       console.error('Error starting bot:', error);
@@ -504,5 +540,60 @@ If the problem persists, contact our support team:
 
   public getBot(): TelegramBot {
     return this.bot;
+  }
+
+  private async checkPendingPayments(): Promise<void> {
+    const now = Date.now();
+    console.log(`[DEBUG] Checking ${this.pendingPayments.length} pending payments...`);
+    
+    for (const payment of this.pendingPayments) {
+      if (payment.notified) {
+        console.log(`[DEBUG] Payment already notified for chat ${payment.chatId}`);
+        continue;
+      }
+      if (payment.expiresAt < now) {
+        console.log(`[DEBUG] Payment expired for chat ${payment.chatId}`);
+        continue;
+      }
+      
+      try {
+        console.log(`[DEBUG] Checking payment for chat ${payment.chatId}, address: ${payment.address}, amount: ${payment.amount} TON`);
+        
+        // Check for incoming transactions
+        const transactions = await this.qrService.getTransactions(payment.address, 10);
+        console.log(`[DEBUG] Found ${transactions.length} transactions for ${payment.address}`);
+        
+        // Log all transactions for debugging
+        transactions.forEach((tx, index) => {
+          const incomingAmount = parseFloat(tx.in.amount) / 1e9;
+          console.log(`[DEBUG] TX ${index}: amount=${incomingAmount}, source=${tx.in.source}, timestamp=${tx.time}, hash=${tx.hash}`);
+        });
+        
+        const found = transactions.find(tx => {
+          const incomingAmount = parseFloat(tx.in.amount) / 1e9;
+          const diff = Math.abs(incomingAmount - payment.amount);
+          console.log(`[DEBUG] Comparing: incoming=${incomingAmount}, expected=${payment.amount}, diff=${diff}, tolerance=${0.02 * payment.amount}`);
+          // 2% tolerance
+          return diff < 0.02 * payment.amount;
+        });
+        
+        if (found) {
+          console.log(`[DEBUG] Payment found! Sending notification to chat ${payment.chatId}`);
+          const incomingAmount = parseFloat(found.in.amount) / 1e9;
+          await this.bot.sendMessage(payment.chatId, `✅ Payment received!\nAmount: ${incomingAmount} TON\nFrom: ${found.in.source || 'unknown'}\nTime: ${new Date(found.time * 1000).toLocaleString()}\nHash: ${found.hash}`);
+          payment.notified = true;
+        } else {
+          console.log(`[DEBUG] No matching payment found for chat ${payment.chatId}`);
+        }
+      } catch (err) {
+        console.error('Error checking payment:', err);
+      }
+    }
+    
+    // Remove expired or notified payments
+    const beforeCount = this.pendingPayments.length;
+    this.pendingPayments = this.pendingPayments.filter(p => !p.notified && p.expiresAt > now);
+    const afterCount = this.pendingPayments.length;
+    console.log(`[DEBUG] Cleaned up payments: ${beforeCount} -> ${afterCount}`);
   }
 } 
