@@ -77,7 +77,7 @@ export class TelegramBotService {
       const welcomeMessage = `
 Hello ${user.first_name}! 👋
 
-🤖 Welcome to TONPix!
+🤖 Welcome to pixTON!
 
 You can create payment requests in TON or fiat currencies (USD, EUR, BRL).
 
@@ -138,7 +138,7 @@ Use the buttons below to get started:`;
       const chatId = msg.chat.id;
 
       const helpMessage = `
-📚 **TONPix Help Menu**
+📚 **pixTON Help Menu**
 
 **Basic Commands:**
 • \`/start\` - Open main menu
@@ -584,7 +584,7 @@ If the problem persists, contact our support team:
       }
       // Start payment check interval - check every 5 seconds instead of 10
       this.paymentCheckInterval = setInterval(() => this.checkPendingPayments(), 5000);
-      console.log('TONPix Telegram bot started successfully');
+      console.log('pixTON Telegram bot started successfully');
     } catch (error) {
       console.error('Error starting bot:', error);
       throw error;
@@ -594,7 +594,7 @@ If the problem persists, contact our support team:
   public async stop(): Promise<void> {
     try {
       await this.bot.stopPolling();
-      console.log('TONPix Telegram bot stopped');
+      console.log('pixTON Telegram bot stopped');
     } catch (error) {
       console.error('Error stopping bot:', error);
     }

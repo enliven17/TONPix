@@ -5,7 +5,7 @@ import { TelegramBotService } from '@/bot/TelegramBot';
 import { validateConfig } from '@/config';
 import { appConfig } from '@/config';
 
-class TONPixApp {
+class PixTONApp {
   private app: express.Application;
   private bot: TelegramBotService;
 
@@ -24,7 +24,7 @@ class TONPixApp {
     // CORS middleware
     this.app.use(cors({
       origin: process.env.NODE_ENV === 'production' 
-        ? ['https://tonpix.com', 'https://www.tonpix.com']
+        ? ['https://pixton.com', 'https://www.pixton.com']
         : true,
       credentials: true
     }));
@@ -51,7 +51,7 @@ class TONPixApp {
         status: 'ok',
         timestamp: new Date().toISOString(),
         version: '1.0.0',
-        service: 'TONPix'
+        service: 'pixTON'
       });
     });
 
@@ -117,7 +117,7 @@ class TONPixApp {
 
       // Start the Express server
       const server = this.app.listen(appConfig.port, () => {
-        console.log(`TONPix server started on port ${appConfig.port}`, {
+        console.log(`pixTON server started on port ${appConfig.port}`, {
           environment: appConfig.nodeEnv,
           port: appConfig.port
         });
@@ -127,10 +127,10 @@ class TONPixApp {
       process.on('SIGTERM', () => this.gracefulShutdown(server));
       process.on('SIGINT', () => this.gracefulShutdown(server));
 
-      console.log('TONPix application started successfully');
+      console.log('pixTON application started successfully');
 
     } catch (error) {
-      console.error('Failed to start TONPix application:', error);
+      console.error('Failed to start pixTON application:', error);
       process.exit(1);
     }
   }
@@ -163,11 +163,11 @@ class TONPixApp {
 
 // Start the application
 if (require.main === module) {
-  const app = new TONPixApp();
+  const app = new PixTONApp();
   app.start().catch((error) => {
     console.error('Failed to start application:', error);
     process.exit(1);
   });
 }
 
-export default TONPixApp; 
+export default PixTONApp; 

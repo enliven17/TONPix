@@ -1,4 +1,4 @@
-# 🤖 TONPix - TON Blockchain QR Payment Bot
+# 🤖 pixTON - TON Blockchain QR Payment Bot
 
 A Telegram bot for creating QR code-based payments using the TON blockchain. Built with TypeScript, Express.js, and modern development practices.
 
@@ -24,8 +24,8 @@ A Telegram bot for creating QR code-based payments using the TON blockchain. Bui
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/enliven17/tonpix.git
-cd tonpix
+git clone https://github.com/enliven17/pixton.git
+cd pixton
 ```
 
 2. **Install dependencies**
@@ -42,7 +42,7 @@ Edit `.env` file with your configuration:
 ```env
 # Telegram Bot Configuration
 TELEGRAM_BOT_TOKEN=your_telegram_bot_token_here
-TELEGRAM_BOT_USERNAME=TONPixBot
+TELEGRAM_BOT_USERNAME=pixTONBot
 
 # TON Blockchain Configuration
 TON_NETWORK=testnet
@@ -142,12 +142,12 @@ npm run test:watch
 
 ### Build Image
 ```bash
-docker build -t tonpix .
+docker build -t pixton .
 ```
 
 ### Run Container
 ```bash
-docker run -p 3000:3000 --env-file .env tonpix
+docker run -p 3000:3000 --env-file .env pixton
 ```
 
 ### Docker Compose
@@ -185,7 +185,7 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/enliven17/tonpix/issues)
+- **Issues**: [GitHub Issues](https://github.com/enliven17/pixton/issues)
 - **Telegram**: @cankat17
 
 

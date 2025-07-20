@@ -1,4 +1,4 @@
-# 🚀 TONPix Demo Guide
+# 🚀 pixTON Demo Guide
 
 ## ✅ Bot Status
 - **Bot Username:** @PixTonBot
@@ -107,7 +107,7 @@ The bot will provide you with:
 
 ### Demo Flow
 1. **Introduction** (30 seconds)
-   - "TONPix: TON Blockchain QR Payment System"
+   - "pixTON: TON Blockchain QR Payment System"
    - "Easy payment receiving via Telegram bot"
 
 2. **Bot Demonstration** (2 minutes)
@@ -154,4 +154,4 @@ If you encounter issues:
 
 ---
 
-**🎉 TONPix Demo Ready!** 
+**🎉 pixTON Demo Ready!** 

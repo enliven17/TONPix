@@ -1,7 +1,7 @@
 version: '3.8'
 
 services:
-  tonpix:
+  pixton:
     build: .
     ports:
       - "3000:3000"
@@ -26,8 +26,8 @@ services:
   # postgres:
   #   image: postgres:15-alpine
   #   environment:
-  #     POSTGRES_DB: tonpix
-  #     POSTGRES_USER: tonpix
+  #     POSTGRES_DB: pixton
+#     POSTGRES_USER: pixton
   #     POSTGRES_PASSWORD: ${DB_PASSWORD}
   #   volumes:
   #     - postgres_data:/var/lib/postgresql/data

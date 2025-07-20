@@ -21,11 +21,11 @@ RUN mkdir -p logs
 
 # Create non-root user
 RUN addgroup -g 1001 -S nodejs
-RUN adduser -S tonpix -u 1001
+RUN adduser -S pixton -u 1001
 
 # Change ownership of the app directory
-RUN chown -R tonpix:nodejs /app
-USER tonpix
+RUN chown -R pixton:nodejs /app
+USER pixton
 
 # Expose port
 EXPOSE 3000

@@ -112,9 +112,9 @@ Teşekkürler! Ödemeniz başarıyla alındı.
 
   public async sendWelcomeMessage(chatId: number, userName: string): Promise<void> {
     const message = `
-🎉 **TONPix'e Hoş Geldiniz!**
+🎉 **pixTON'a Hoş Geldiniz!**
 
-Merhaba ${userName}! TONPix ile TON blockchain üzerinden güvenli ödemeler alabilirsiniz.
+Merhaba ${userName}! pixTON ile TON blockchain üzerinden güvenli ödemeler alabilirsiniz.
 
 **Özellikler:**
 • 🚀 Hızlı QR kod ödemeleri

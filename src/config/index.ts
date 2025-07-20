@@ -15,7 +15,7 @@ export const tonConfig: TONConfig = {
 // Bot Configuration
 export const botConfig: BotConfig = {
   token: process.env.TELEGRAM_BOT_TOKEN || '',
-  username: process.env.TELEGRAM_BOT_USERNAME || 'TONPixBot',
+  username: process.env.TELEGRAM_BOT_USERNAME || 'pixTONBot',
   webhookUrl: process.env.TELEGRAM_WEBHOOK_URL || undefined,
   polling: process.env.NODE_ENV === 'development' || !process.env.TELEGRAM_WEBHOOK_URL,
   network: tonConfig.network,
@@ -62,7 +62,7 @@ export const databaseConfig = {
   url: process.env.DATABASE_URL || '',
   host: process.env.DB_HOST || 'localhost',
   port: parseInt(process.env.DB_PORT || '5432', 10),
-  database: process.env.DB_NAME || 'tonpix',
+  database: process.env.DB_NAME || 'pixton',
   username: process.env.DB_USER || 'postgres',
   password: process.env.DB_PASSWORD || '',
   ssl: process.env.DB_SSL === 'true',
