@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { botConfig } from '@/config';
 import { PaymentService } from '@/payment/PaymentService';
 import { QRService } from '@/qr/QRService';
+import QRCode from 'qrcode';
 
 export class TelegramBotService {
   private bot: TelegramBot;
@@ -312,15 +313,7 @@ Or use the quick options below:`;
       // Check if user has set their address
       const userAddress = this.userAddresses.get(chatId);
       if (!userAddress) {
-        await this.bot.sendMessage(chatId, `❌ Please set your TON address first!
-
-Go to Settings (⚙️) and use:
-/set_address <your_ton_address>
-
-Example:
-/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t
-
-This address will be used to receive your payments.`);
+        await this.bot.sendMessage(chatId, `❌ Please set your TON address first!\n\nGo to Settings (⚙️) and use:\n/set_address <your_ton_address>\n\nExample:\n/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t\n\nThis address will be used to receive your payments.`);
         return;
       }
 
@@ -330,7 +323,13 @@ This address will be used to receive your payments.`);
 
       // Create QR code data
       const tonLink = `ton://transfer/${userAddress}?amount=${tokenAmount * 1000000000}&text=Payment for ${amount} TON`;
+
+      // QR kodu oluştur
+      const qrCodeDataUrl = await QRCode.toDataURL(tonLink, { width: 256, margin: 2 });
       
+      // Base64'ten Buffer'a çevir
+      const qrCodeBuffer = Buffer.from(qrCodeDataUrl.split(',')[1], 'base64');
+
       // Send payment information
       const paymentMessage = `
 💳 Payment Created
@@ -353,17 +352,23 @@ Share this link or QR code with your customers to receive payment.
         disable_web_page_preview: true
       });
 
+      // QR kodunu gönder
+      await this.bot.sendPhoto(chatId, qrCodeBuffer, {
+        caption: 'Scan this QR code with TON Wallet to pay.'
+      });
+
       // Send QR code instructions
       const qrInstructions = `
-📱 QR Code Usage:
+📱 How to Use QR Code:
 
-1. Copy the TON link above
-2. Share it with your customers
-3. Customers can pay using TON Wallet
-4. You'll receive the payment to your address
+1. 📱 Open TON Wallet app on your phone
+2. 📷 Tap "Scan QR Code" button
+3. 📷 Scan the QR code above with your camera
+4. ✅ Check the amount and address
+5. 💰 Confirm the payment
 
 To get Testnet TON:
-https://t.me/testgiver_ton_bot
+@testgiver_ton_bot
       `;
 
       await this.bot.sendMessage(chatId, qrInstructions, {
