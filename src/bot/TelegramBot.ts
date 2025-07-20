@@ -1,20 +1,21 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { botConfig } from '@/config';
-// import { PaymentService } from '@/payment/PaymentService';
-// import { QRService } from '@/qr/QRService';
+import { PaymentService } from '@/payment/PaymentService';
+import { QRService } from '@/qr/QRService';
 
 export class TelegramBotService {
   private bot: TelegramBot;
-  // private paymentService: PaymentService;
-  // private qrService: QRService;
+  private paymentService: PaymentService;
+  private qrService: QRService;
+  private userAddresses: Map<number, string> = new Map(); // chatId -> TON address
 
   constructor() {
     this.bot = new TelegramBot(botConfig.token, {
       polling: botConfig.polling,
       webHook: botConfig.webhookUrl ? { port: 8443 } : undefined,
     });
-    // this.paymentService = new PaymentService();
-    // this.qrService = new QRService();
+    this.paymentService = new PaymentService();
+    this.qrService = new QRService();
     this.setupEventHandlers();
   }
 
@@ -27,6 +28,9 @@ export class TelegramBotService {
 
     // Handle /create_payment command
     this.bot.onText(/\/create_payment (.+)/, this.handleCreatePayment.bind(this));
+
+    // Handle /set_address command
+    this.bot.onText(/\/set_address (.+)/, this.handleSetAddress.bind(this));
 
     // Handle /balance command
     this.bot.onText(/\/balance/, this.handleBalance.bind(this));
@@ -48,33 +52,52 @@ export class TelegramBotService {
 
   private async handleStart(msg: any): Promise<void> {
     try {
-      console.log('handleStart çağrıldı. Gelen mesaj:', JSON.stringify(msg, null, 2));
-      if (!msg) {
-        console.error('Gelen msg nesnesi undefined veya null!');
-        return;
-      }
-      if (!msg.chat) {
-        console.error('msg.chat alanı yok! Gelen msg:', JSON.stringify(msg, null, 2));
-        return;
-      }
-      if (!msg.from) {
-        console.error('msg.from alanı yok! Gelen msg:', JSON.stringify(msg, null, 2));
-        return;
-      }
       const chatId = msg.chat.id;
       const user = msg.from;
 
-      console.log(`Kullanıcı: ${user.id}, Ad: ${user.first_name}`);
+      const welcomeMessage = `🤖 Welcome to TONPix!
 
-      // Basit test mesajı
-      const welcomeMessage = `Hello ${user.first_name}! TONPix bot is working!`;
+Hello ${user.first_name}! TONPix provides QR code-based payment system with TON blockchain.
 
-      await this.bot.sendMessage(chatId, welcomeMessage);
-      console.log('Mesaj başarıyla gönderildi');
+Available Commands:
+• /set_address <address> - Set your TON address
+• /create_payment <amount> - Create new payment (in TON)
+• /balance - View wallet balance
+• /history - View payment history
+• /help - Help menu
+
+Quick Start:
+1. Set your TON address: /set_address <your_address>
+2. Click "💰 Receive Payment" button
+3. Enter amount (e.g., 10 TON)
+4. Share QR code with customers
+
+Use the buttons below to get started:`;
+
+      const keyboard = {
+        inline_keyboard: [
+          [
+            { text: '💰 Receive Payment', callback_data: 'create_payment' },
+            { text: '💳 Balance', callback_data: 'balance' }
+          ],
+          [
+            { text: '📊 History', callback_data: 'history' },
+            { text: '❓ Help', callback_data: 'help' }
+          ],
+          [
+            { text: '⚙️ Settings', callback_data: 'settings' }
+          ]
+        ]
+      };
+
+      await this.bot.sendMessage(chatId, welcomeMessage, {
+        reply_markup: keyboard
+      });
+
+      console.log('Start message sent successfully');
 
     } catch (error) {
-      console.error('handleStart fonksiyonunda hata oluştu:', error);
-      console.error('Hatalı gelen mesaj:', JSON.stringify(msg, null, 2));
+      console.error('Error in handleStart:', error);
       await this.sendErrorMessage(msg?.chat?.id);
     }
   }
@@ -127,8 +150,8 @@ export class TelegramBotService {
       const chatId = msg.chat.id;
       const text = msg.text || '';
 
-      // Extract amount and currency from command
-      const match = text.match(/\/create_payment\s+(\d+(?:\.\d+)?)\s*([A-Z]{3})?/);
+      // Extract amount from command (only TON)
+      const match = text.match(/\/create_payment\s+(\d+(?:\.\d+)?)/);
       
       if (!match) {
         await this.showPaymentAmountPrompt(chatId);
@@ -136,7 +159,7 @@ export class TelegramBotService {
       }
 
       const amount = parseFloat(match[1]);
-      const currency = match[2] || 'BRL';
+      const currency = 'TON'; // Always TON
 
       await this.createPayment(chatId, amount, currency);
 
@@ -237,41 +260,38 @@ With this feature you will be able to:
   }
 
   private async showPaymentAmountPrompt(chatId: number): Promise<void> {
-    const message = `
-💰 **Create Payment**
+    const message = `💰 Create Payment
 
-Please enter the payment amount and currency:
+Please enter the payment amount in TON:
 
-**Format:** \`/create_payment <amount> <currency>\`
+Format: /create_payment <amount>
 
-**Examples:**
-• \`/create_payment 10 BRL\`
-• \`/create_payment 5 USD\`
-• \`/create_payment 100 EUR\`
+Examples:
+• /create_payment 10
+• /create_payment 5.5
+• /create_payment 100
 
-**Or use the quick options below:**
-      `;
+Or use the quick options below:`;
 
     const keyboard = {
       inline_keyboard: [
         [
-          { text: '10 BRL', callback_data: 'payment_amount_10_BRL' },
-          { text: '5 USD', callback_data: 'payment_amount_5_USD' },
-          { text: '50 EUR', callback_data: 'payment_amount_50_EUR' }
+          { text: '1 TON', callback_data: 'payment_amount_1_TON' },
+          { text: '5 TON', callback_data: 'payment_amount_5_TON' },
+          { text: '10 TON', callback_data: 'payment_amount_10_TON' }
         ],
         [
-          { text: '25 BRL', callback_data: 'payment_amount_25_BRL' },
-          { text: '10 USD', callback_data: 'payment_amount_10_USD' },
-          { text: '100 EUR', callback_data: 'payment_amount_100_EUR' }
+          { text: '25 TON', callback_data: 'payment_amount_25_TON' },
+          { text: '50 TON', callback_data: 'payment_amount_50_TON' },
+          { text: '100 TON', callback_data: 'payment_amount_100_TON' }
         ],
-                  [
-            { text: '🔙 Back', callback_data: 'back_to_main' }
-          ]
+        [
+          { text: '🔙 Back', callback_data: 'back_to_main' }
+        ]
       ]
     };
 
     await this.bot.sendMessage(chatId, message, {
-      parse_mode: 'Markdown',
       reply_markup: keyboard
     });
   }
@@ -287,35 +307,45 @@ Please enter the payment amount and currency:
 
   private async createPayment(chatId: number, amount: number, currency: string): Promise<void> {
     try {
-      // Gerçek ödeme oluşturma
-      // const payment = await this.paymentService.createPayment({
-      //   merchantId: chatId,
-      //   amount,
-      //   currency,
-      //   tokenType: 'TON', // Testnet için TON
-      //   description: `Telegram payment by user ${chatId}`
-      // });
+      console.log(`Creating payment: ${amount} ${currency} for chat ${chatId}`);
 
-      // QR kodu oluştur
-      // const qrCodeDataUrl = await this.qrService.generateQRCode(payment);
-      // const tonLink = await this.qrService.tonService.createDeepLink(payment);
+      // Check if user has set their address
+      const userAddress = this.userAddresses.get(chatId);
+      if (!userAddress) {
+        await this.bot.sendMessage(chatId, `❌ Please set your TON address first!
 
-      // Kullanıcıya ödeme bilgisi gönder
+Go to Settings (⚙️) and use:
+/set_address <your_ton_address>
+
+Example:
+/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t
+
+This address will be used to receive your payments.`);
+        return;
+      }
+
+      // Create payment for user's address
+      const paymentId = `payment_${Date.now()}`;
+      const tokenAmount = amount; // Direct TON amount
+
+      // Create QR code data
+      const tonLink = `ton://transfer/${userAddress}?amount=${tokenAmount * 1000000000}&text=Payment for ${amount} TON`;
+      
+      // Send payment information
       const paymentMessage = `
-💳 **Payment Created**
+💳 Payment Created
 
-**Amount:** ${amount} ${currency}
-**TON Equivalent:** 0 TON
-**Status:** ⏳ Pending
-**Expires:** 2023-12-31T00:00:00.000Z
+Amount: ${amount} TON
+Status: ⏳ Pending
+Expires: ${new Date(Date.now() + 15 * 60 * 1000).toLocaleString('en-US')}
 
-**TON Address:**
-\`EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t\`
+Your TON Address:
+\`${userAddress}\`
 
-**TON Link:**
-[Open in TON Wallet](https://testnet.ton.org)
+TON Link:
+[Open in TON Wallet](${tonLink})
 
-Aşağıdaki QR kodunu TON Wallet ile tarayarak ödeme yapabilirsin.
+Share this link or QR code with your customers to receive payment.
       `;
 
       await this.bot.sendMessage(chatId, paymentMessage, {
@@ -323,10 +353,22 @@ Aşağıdaki QR kodunu TON Wallet ile tarayarak ödeme yapabilirsin.
         disable_web_page_preview: true
       });
 
-      // QR kodunu gönder
-      // await this.bot.sendPhoto(chatId, qrCodeDataUrl, {
-      //   caption: 'Scan this QR code with TON Wallet to pay.'
-      // });
+      // Send QR code instructions
+      const qrInstructions = `
+📱 QR Code Usage:
+
+1. Copy the TON link above
+2. Share it with your customers
+3. Customers can pay using TON Wallet
+4. You'll receive the payment to your address
+
+To get Testnet TON:
+https://t.me/testgiver_ton_bot
+      `;
+
+      await this.bot.sendMessage(chatId, qrInstructions, {
+        parse_mode: 'Markdown'
+      });
 
     } catch (error) {
       console.error('Error creating payment:', error);
@@ -335,20 +377,21 @@ Aşağıdaki QR kodunu TON Wallet ile tarayarak ödeme yapabilirsin.
   }
 
   private async showSettings(chatId: number): Promise<void> {
-    const settingsMessage = `
-⚙️ **Settings**
+    const userAddress = this.userAddresses.get(chatId) || 'Not set';
+    
+    const settingsMessage = `⚙️ Settings
 
-**Bot Settings:**
-• Notifications: ✅ Enabled
-• Language: 🇺🇸 English
-• Timezone: UTC+0
+Your TON Address: ${userAddress}
 
-**Wallet Settings:**
-• TON Address: EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t
-• Network: testnet
+To set your TON address, send:
+/set_address <your_ton_address>
 
-*Settings menu coming soon...*
-      `;
+Example:
+/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t
+
+Network: testnet
+
+*Your address will be used for receiving payments*`;
 
     const keyboard = {
       inline_keyboard: [
@@ -359,9 +402,42 @@ Aşağıdaki QR kodunu TON Wallet ile tarayarak ödeme yapabilirsin.
     };
 
     await this.bot.sendMessage(chatId, settingsMessage, {
-      parse_mode: 'Markdown',
       reply_markup: keyboard
     });
+  }
+
+  private async handleSetAddress(msg: any): Promise<void> {
+    try {
+      const chatId = msg.chat.id;
+      const text = msg.text || '';
+
+      // Extract address from command
+      const match = text.match(/\/set_address\s+(.+)/);
+      
+      if (!match) {
+        await this.bot.sendMessage(chatId, 'Please provide a valid TON address.\nExample: /set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t');
+        return;
+      }
+
+      const address = match[1].trim();
+
+      // Flexible TON address validation
+      if (address.length < 48 || address.length > 60 || /[^a-zA-Z0-9_-]/.test(address)) {
+        await this.bot.sendMessage(chatId, 'Invalid TON address format. Please provide a valid address (48-60 chars, no spaces or special chars).');
+        return;
+      }
+
+      // Save user's address
+      this.userAddresses.set(chatId, address);
+
+      await this.bot.sendMessage(chatId, `✅ Your TON address has been set to:\n\`${address}\`\n\nYou can now receive payments to this address.`, {
+        parse_mode: 'Markdown'
+      });
+
+    } catch (error) {
+      console.error('Error in handleSetAddress:', error);
+      await this.sendErrorMessage(msg.chat.id);
+    }
   }
 
   private async handleError(error: Error): Promise<void> {
