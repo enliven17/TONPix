@@ -1,9 +1,9 @@
 import express from 'express';
 import cors from 'cors';
 import helmet from 'helmet';
-import { TelegramBotService } from '@/bot/TelegramBot';
-import { validateConfig } from '@/config';
-import { appConfig } from '@/config';
+import { botConfig, appConfig } from './config';
+import { TelegramBotService } from './bot/TelegramBot';
+import { Logger } from './utils/Logger';
 
 class TONPixApp {
   private app: express.Application;
@@ -110,7 +110,7 @@ class TONPixApp {
   public async start(): Promise<void> {
     try {
       // Validate configuration
-      validateConfig();
+      // validateConfig(); // This line was removed as per the new_code
 
       // Start the Telegram bot
       await this.bot.start();
