@@ -1,15 +1,20 @@
 import TelegramBot from 'node-telegram-bot-api';
 import { botConfig } from '@/config';
+// import { PaymentService } from '@/payment/PaymentService';
+// import { QRService } from '@/qr/QRService';
 
 export class TelegramBotService {
   private bot: TelegramBot;
+  // private paymentService: PaymentService;
+  // private qrService: QRService;
 
   constructor() {
     this.bot = new TelegramBot(botConfig.token, {
       polling: botConfig.polling,
       webHook: botConfig.webhookUrl ? { port: 8443 } : undefined,
     });
-
+    // this.paymentService = new PaymentService();
+    // this.qrService = new QRService();
     this.setupEventHandlers();
   }
 
@@ -61,46 +66,11 @@ export class TelegramBotService {
 
       console.log(`Kullanıcı: ${user.id}, Ad: ${user.first_name}`);
 
-      const welcomeMessage = `
-🤖 **Welcome to TONPix!**
+      // Basit test mesajı
+      const welcomeMessage = `Hello ${user.first_name}! TONPix bot is working!`;
 
-Hello ${user.first_name}! TONPix provides QR code-based payment system with TON blockchain.
-
-**Available Commands:**
-• /create_payment <amount> - Create new payment
-• /balance - View wallet balance
-• /history - View payment history
-• /help - Help menu
-
-**Quick Start:**
-1. Click "Receive Payment" button
-2. Enter amount (e.g., 10 BRL)
-3. Scan QR code
-4. Make payment with TON Wallet
-
-Use the buttons below to get started:
-      `;
-
-      const keyboard = {
-        inline_keyboard: [
-          [
-            { text: '💰 Receive Payment', callback_data: 'create_payment' },
-            { text: '💳 Balance', callback_data: 'balance' }
-          ],
-          [
-            { text: '📊 History', callback_data: 'history' },
-            { text: '❓ Help', callback_data: 'help' }
-          ],
-          [
-            { text: '⚙️ Settings', callback_data: 'settings' }
-          ]
-        ]
-      };
-
-      await this.bot.sendMessage(chatId, welcomeMessage, {
-        parse_mode: 'Markdown',
-        reply_markup: keyboard
-      });
+      await this.bot.sendMessage(chatId, welcomeMessage);
+      console.log('Mesaj başarıyla gönderildi');
 
     } catch (error) {
       console.error('handleStart fonksiyonunda hata oluştu:', error);
@@ -317,62 +287,46 @@ Please enter the payment amount and currency:
 
   private async createPayment(chatId: number, amount: number, currency: string): Promise<void> {
     try {
-      console.log(`Creating payment: ${amount} ${currency} for chat ${chatId}`);
+      // Gerçek ödeme oluşturma
+      // const payment = await this.paymentService.createPayment({
+      //   merchantId: chatId,
+      //   amount,
+      //   currency,
+      //   tokenType: 'TON', // Testnet için TON
+      //   description: `Telegram payment by user ${chatId}`
+      // });
 
-      // Create mock payment for demo
-      const paymentId = `payment_${Date.now()}`;
-      const tokenAmount = amount * 0.00015; // Mock exchange rate
-      const tonAddress = 'EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t';
+      // QR kodu oluştur
+      // const qrCodeDataUrl = await this.qrService.generateQRCode(payment);
+      // const tonLink = await this.qrService.tonService.createDeepLink(payment);
 
-      // Create QR code data
-      const tonLink = `ton://transfer/${tonAddress}?amount=${tokenAmount}&text=Payment for ${amount} ${currency}`;
-      
-      // For demo, we'll create a simple text representation
-      const qrCodeText = `
-QR Code Data:
-${tonLink}
-      `;
-
-      // Send payment information
+      // Kullanıcıya ödeme bilgisi gönder
       const paymentMessage = `
 💳 **Payment Created**
 
 **Amount:** ${amount} ${currency}
-**TON Equivalent:** ${tokenAmount} TON
+**TON Equivalent:** 0 TON
 **Status:** ⏳ Pending
-**Expires:** ${new Date(Date.now() + 15 * 60 * 1000).toLocaleString('en-US')}
+**Expires:** 2023-12-31T00:00:00.000Z
 
 **TON Address:**
-\`${tonAddress}\`
+\`EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t\`
 
-**QR Code Data:**
-\`${tonLink}\`
+**TON Link:**
+[Open in TON Wallet](https://testnet.ton.org)
 
-You can make payment by scanning the QR code or copying the address.
+Aşağıdaki QR kodunu TON Wallet ile tarayarak ödeme yapabilirsin.
       `;
 
-      // Send message with payment info
       await this.bot.sendMessage(chatId, paymentMessage, {
-        parse_mode: 'Markdown'
+        parse_mode: 'Markdown',
+        disable_web_page_preview: true
       });
 
-      // Send QR code instructions
-      const qrInstructions = `
-📱 **QR Code Usage:**
-
-1. Copy the TON link above
-2. Open TON Wallet app
-3. Click "Transfer" option
-4. Paste the address and check the amount
-5. Confirm the payment
-
-**To get Testnet TON:**
-https://t.me/testgiver_ton_bot
-      `;
-
-      await this.bot.sendMessage(chatId, qrInstructions, {
-        parse_mode: 'Markdown'
-      });
+      // QR kodunu gönder
+      // await this.bot.sendPhoto(chatId, qrCodeDataUrl, {
+      //   caption: 'Scan this QR code with TON Wallet to pay.'
+      // });
 
     } catch (error) {
       console.error('Error creating payment:', error);

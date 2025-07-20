@@ -278,6 +278,10 @@ export class QRService {
     }
   }
 
+  public async getDeepLink(payment: Payment): Promise<string> {
+    return this.tonService.createDeepLink(payment);
+  }
+
   private constructTONDeepLink(deepLink: TONDeepLink): string {
     const { address, amount, text, jetton } = deepLink;
     
