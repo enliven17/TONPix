@@ -24,7 +24,7 @@ A Telegram bot for creating QR code-based payments using the TON blockchain. Bui
 
 1. **Clone the repository**
 ```bash
-git clone https://github.com/yourusername/tonpix.git
+git clone https://github.com/enliven17/tonpix.git
 cd tonpix
 ```
 
@@ -185,9 +185,9 @@ This project is licensed under the MIT License - see the [LICENSE](LICENSE) file
 ## 🆘 Support
 
 - **Documentation**: [docs/](docs/)
-- **Issues**: [GitHub Issues](https://github.com/yourusername/tonpix/issues)
-- **Telegram**: @TONPixSupport
-- **Email**: support@tonpix.com
+- **Issues**: [GitHub Issues](https://github.com/enliven17/tonpix/issues)
+- **Telegram**: @cankat17
+
 
 ## 🎯 Roadmap
 
