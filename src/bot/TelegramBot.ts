@@ -11,6 +11,7 @@ interface PendingPayment {
   amount: number;
   expiresAt: number;
   notified: boolean;
+  notifiedTxHashes?: string[]; // Bildirilen transaction hash'leri
 }
 
 export class TelegramBotService {
@@ -52,6 +53,9 @@ export class TelegramBotService {
     // Handle /history command
     this.bot.onText(/\/history/, this.handleHistory.bind(this));
 
+    // Handle /payment_status command
+    this.bot.onText(/\/payment_status/, this.handlePaymentStatus.bind(this));
+
     // Handle callback queries (button clicks)
     this.bot.on('callback_query', this.handleCallbackQuery.bind(this));
 
@@ -90,6 +94,7 @@ Available Commands:
 • /create_payment <amount> <currency> - Create new payment (in TON or fiat)
 • /balance - View wallet balance
 • /history - View payment history
+• /payment_status - Check recent transactions
 • /help - Help menu
 
 Quick Start:
@@ -157,8 +162,7 @@ Use the buttons below to get started:`;
 • jUSDT (Jetton USDT)
 
 **Need Help?**
-• Technical support: @TONPixSupport
-• Email: support@tonpix.com
+• Technical support: @cankat17
       `;
 
       await this.bot.sendMessage(chatId, helpMessage, {
@@ -246,18 +250,84 @@ With this feature you will be able to:
     }
   }
 
+  private async handlePaymentStatus(msg: any): Promise<void> {
+    try {
+      const chatId = msg.chat.id;
+      console.log(`[DEBUG] Payment status requested for chat ${chatId}`);
+      
+      // Check if user has set their address
+      const userAddress = this.userAddresses.get(chatId);
+      if (!userAddress) {
+        console.log(`[DEBUG] No address set for chat ${chatId}`);
+        await this.bot.sendMessage(chatId, `❌ Please set your TON address first!\n\nUse:\n/set_address <your_ton_address>\n\nExample:\n/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t`);
+        return;
+      }
+
+      console.log(`[DEBUG] Fetching transactions for address: ${userAddress}`);
+
+      // Send loading message
+      await this.bot.sendMessage(chatId, `⏳ Fetching recent transactions...`);
+
+      try {
+        // Get recent transactions
+        console.log(`[DEBUG] Calling qrService.getTransactions for address: ${userAddress}`);
+        const transactions = await this.qrService.getTransactions(userAddress, 5);
+        console.log(`[DEBUG] Received ${transactions?.length || 0} transactions`);
+        
+        if (!transactions || transactions.length === 0) {
+          console.log(`[DEBUG] No transactions found for address: ${userAddress}`);
+          await this.bot.sendMessage(chatId, `📊 **Payment Status**\n\nAddress: \`${userAddress}\`\n\nNo recent transactions found.`);
+          return;
+        }
+
+        console.log(`[DEBUG] Processing ${transactions.length} transactions`);
+        let statusMessage = `📊 **Payment Status**\n\nAddress: \`${userAddress}\`\n\n**Recent Transactions:**\n\n`;
+        
+        transactions.forEach((tx, index) => {
+          try {
+            console.log(`[DEBUG] Processing transaction ${index}:`, tx);
+            const amount = parseFloat(tx.in?.amount || '0') / 1e9;
+            const time = new Date((tx.time || Date.now() / 1000) * 1000).toLocaleString();
+            const source = tx.in?.source || 'unknown';
+            const hash = tx.hash || 'unknown';
+            
+            statusMessage += `${index + 1}. **${amount} TON**\n`;
+            statusMessage += `   From: \`${source}\`\n`;
+            statusMessage += `   Time: ${time}\n`;
+            statusMessage += `   Hash: \`${hash}\`\n\n`;
+          } catch (txError) {
+            console.error('Error processing transaction:', txError);
+            statusMessage += `${index + 1}. **Error processing transaction**\n\n`;
+          }
+        });
+
+        console.log(`[DEBUG] Sending status message to chat ${chatId}`);
+        await this.bot.sendMessage(chatId, statusMessage, {
+          parse_mode: 'Markdown'
+        });
+
+      } catch (apiError) {
+        console.error('Error fetching transactions:', apiError);
+        console.error('Error details:', {
+          message: (apiError as Error).message,
+          stack: (apiError as Error).stack,
+          address: userAddress
+        });
+        await this.bot.sendMessage(chatId, `❌ **Error fetching transactions**\n\nAddress: \`${userAddress}\`\n\nCould not fetch recent transactions. Please try again later.\n\nIf the problem persists, contact: @cankat17`);
+      }
+
+    } catch (error) {
+      console.error('Error in handlePaymentStatus:', error);
+      await this.sendErrorMessage(msg.chat.id);
+    }
+  }
+
   private async handleCallbackQuery(query: any): Promise<void> {
     try {
       const chatId = query.message?.chat.id;
       const data = query.data;
 
-      if (!chatId || !data) {
-        console.error('Invalid callback query data');
-        return;
-      }
-
-      // Answer the callback query to remove loading state
-      await this.bot.answerCallbackQuery(query.id);
+      if (!chatId) return;
 
       switch (data) {
         case 'create_payment':
@@ -361,7 +431,8 @@ Or use the quick options below:`;
         address: userAddress,
         amount: tonAmount,
         expiresAt,
-        notified: false
+        notified: false,
+        notifiedTxHashes: []
       });
 
       // Create QR code data
@@ -499,8 +570,7 @@ Network: testnet
 Sorry, an error occurred. Please try again later.
 
 If the problem persists, contact our support team:
-• @TONPixSupport
-• support@tonpix.com
+• @cankat17
       `;
 
     try {
@@ -547,17 +617,14 @@ If the problem persists, contact our support team:
     console.log(`[DEBUG] Checking ${this.pendingPayments.length} pending payments...`);
     
     for (const payment of this.pendingPayments) {
-      if (payment.notified) {
-        console.log(`[DEBUG] Payment already notified for chat ${payment.chatId}`);
-        continue;
-      }
       if (payment.expiresAt < now) {
         console.log(`[DEBUG] Payment expired for chat ${payment.chatId}`);
         continue;
       }
       
       try {
-        console.log(`[DEBUG] Checking payment for chat ${payment.chatId}, address: ${payment.address}, amount: ${payment.amount} TON`);
+        if (!payment.notifiedTxHashes) payment.notifiedTxHashes = [];
+        console.log(`[DEBUG] Checking payment for chat ${payment.chatId}, address: ${payment.address}`);
         
         // Check for incoming transactions
         const transactions = await this.qrService.getTransactions(payment.address, 10);
@@ -569,30 +636,24 @@ If the problem persists, contact our support team:
           console.log(`[DEBUG] TX ${index}: amount=${incomingAmount}, source=${tx.in.source}, timestamp=${tx.time}, hash=${tx.hash}`);
         });
         
-        const found = transactions.find(tx => {
+        // If there are any transactions, consider it a payment received
+        for (const tx of transactions) {
           const incomingAmount = parseFloat(tx.in.amount) / 1e9;
-          const diff = Math.abs(incomingAmount - payment.amount);
-          console.log(`[DEBUG] Comparing: incoming=${incomingAmount}, expected=${payment.amount}, diff=${diff}, tolerance=${0.02 * payment.amount}`);
-          // 2% tolerance
-          return diff < 0.02 * payment.amount;
-        });
-        
-        if (found) {
-          console.log(`[DEBUG] Payment found! Sending notification to chat ${payment.chatId}`);
-          const incomingAmount = parseFloat(found.in.amount) / 1e9;
-          await this.bot.sendMessage(payment.chatId, `✅ Payment received!\nAmount: ${incomingAmount} TON\nFrom: ${found.in.source || 'unknown'}\nTime: ${new Date(found.time * 1000).toLocaleString()}\nHash: ${found.hash}`);
-          payment.notified = true;
-        } else {
-          console.log(`[DEBUG] No matching payment found for chat ${payment.chatId}`);
+          if (tx.in.amount && !payment.notifiedTxHashes.includes(tx.hash)) {
+            // Sadece IN (gelen) transactionlar için
+            console.log(`[DEBUG] New IN transaction found: ${tx.hash}`);
+            await this.bot.sendMessage(payment.chatId, `✅ Incoming transaction!\nAmount: ${incomingAmount} TON\nFrom: ${tx.in.source || 'unknown'}\nTime: ${new Date(tx.time * 1000).toLocaleString()}\nHash: ${tx.hash}`);
+            payment.notifiedTxHashes.push(tx.hash);
+          }
         }
       } catch (err) {
         console.error('Error checking payment:', err);
       }
     }
     
-    // Remove expired or notified payments
+    // Remove expired payments
     const beforeCount = this.pendingPayments.length;
-    this.pendingPayments = this.pendingPayments.filter(p => !p.notified && p.expiresAt > now);
+    this.pendingPayments = this.pendingPayments.filter(p => p.expiresAt > now);
     const afterCount = this.pendingPayments.length;
     console.log(`[DEBUG] Cleaned up payments: ${beforeCount} -> ${afterCount}`);
   }
