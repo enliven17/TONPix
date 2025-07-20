@@ -52,42 +52,30 @@ export class TONService {
   public async getTransactions(address: string, limit: number = 10): Promise<TONTransaction[]> {
     try {
       this.logger.info(`Getting transactions for address: ${address}`);
-
-      const response = await axios.get(`${this.rpcUrl}/getTransactions`, {
-        params: {
-          address,
-          limit
-        },
-        headers: {
-          'X-API-Key': this.apiKey
-        }
-      });
-
-      if (!response.data.ok) {
-        throw new Error(`TON API error: ${response.data.error}`);
+      const cleanAddress = address.trim();
+      const explorerUrl = `https://testnet.tonapi.io/v2/blockchain/accounts/${cleanAddress}/transactions?limit=${limit}`;
+      const response = await axios.get(explorerUrl);
+      this.logger.info('[DEBUG] Explorer API response', { data: response.data });
+      if (!response.data?.transactions) {
+        throw new Error('No transactions found in explorer API response');
       }
-
-      const transactions: TONTransaction[] = response.data.result.map((tx: any) => ({
+      // Map explorer response to TONTransaction[]
+      const transactions: TONTransaction[] = response.data.transactions.map((tx: any) => ({
         hash: tx.hash,
         lt: tx.lt,
-        account: {
-          address: tx.account.address
-        },
+        account: { address: cleanAddress },
         in: {
-          amount: tx.in?.amount || '0',
-          source: tx.in?.source
+          amount: tx.in_msg?.value || '0',
+          source: tx.in_msg?.source || ''
         },
-        out: tx.out?.map((out: any) => ({
-          amount: out.amount,
+        out: (tx.out_msgs || []).map((out: any) => ({
+          amount: out.value,
           destination: out.destination
-        })) || [],
-        time: tx.time
+        })),
+        time: tx.utime
       }));
-
-      this.logger.info(`Retrieved ${transactions.length} transactions for ${address}`);
-
+      this.logger.info(`Retrieved ${transactions.length} transactions for ${cleanAddress}`);
       return transactions;
-
     } catch (error) {
       this.logger.error('Error getting transactions:', error);
       throw error;
