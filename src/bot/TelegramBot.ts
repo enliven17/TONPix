@@ -2,6 +2,7 @@ import TelegramBot from 'node-telegram-bot-api';
 import { botConfig } from '@/config';
 import { PaymentService } from '@/payment/PaymentService';
 import { QRService } from '@/qr/QRService';
+import { TONService } from '@/blockchain/TONService';
 import QRCode from 'qrcode';
 import { ExchangeRateService } from '@/utils/ExchangeRateService';
 
@@ -12,12 +13,14 @@ interface PendingPayment {
   expiresAt: number;
   notified: boolean;
   notifiedTxHashes?: string[]; // Bildirilen transaction hash'leri
+  createdAt: number; // Ödeme oluşturulma zamanı
 }
 
 export class TelegramBotService {
   private bot: TelegramBot;
   private paymentService: PaymentService;
   private qrService: QRService;
+  private tonService: TONService;
   private userAddresses: Map<number, string> = new Map(); // chatId -> TON address
   private pendingPayments: PendingPayment[] = [];
   private paymentCheckInterval: NodeJS.Timeout | null = null;
@@ -30,6 +33,7 @@ export class TelegramBotService {
     });
     this.paymentService = new PaymentService();
     this.qrService = new QRService();
+    this.tonService = new TONService();
     this.exchangeRateService = new ExchangeRateService();
     this.setupEventHandlers();
   }
@@ -52,9 +56,6 @@ export class TelegramBotService {
 
     // Handle /history command
     this.bot.onText(/\/history/, this.handleHistory.bind(this));
-
-    // Handle /payment_status command
-    this.bot.onText(/\/payment_status/, this.handlePaymentStatus.bind(this));
 
     // Handle callback queries (button clicks)
     this.bot.on('callback_query', this.handleCallbackQuery.bind(this));
@@ -93,8 +94,7 @@ Available Commands:
 • /set_address <address> - Set your TON address
 • /create_payment <amount> <currency> - Create new payment (in TON or fiat)
 • /balance - View wallet balance
-• /history - View payment history
-• /payment_status - Check recent transactions
+• /history - View transaction history
 • /help - Help menu
 
 Quick Start:
@@ -206,18 +206,39 @@ Use the buttons below to get started:`;
     try {
       const chatId = msg.chat.id;
       
-      const balanceMessage = `
+      // Check if user has set their address
+      const userAddress = this.userAddresses.get(chatId);
+      if (!userAddress) {
+        await this.bot.sendMessage(chatId, `❌ Please set your TON address first!\n\nUse:\n/set_address <your_ton_address>\n\nExample:\n/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t`);
+        return;
+      }
+
+      // Send loading message
+      await this.bot.sendMessage(chatId, `⏳ Fetching wallet balance...`);
+
+      try {
+        // Get balance from explorer API
+        const balance = await this.tonService.getBalance(userAddress);
+        const balanceInTON = parseFloat(balance.balance) / 1e9;
+        
+        const balanceMessage = `
 💳 **Wallet Balance**
 
-**TON Network:** testnet
-**Address:** \`EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t\`
+**Network:** testnet
+**Address:** \`${userAddress}\`
+**Balance:** **${balanceInTON.toFixed(6)} TON**
 
-*Balance query feature coming soon...*
-      `;
+*Last updated: ${new Date().toLocaleString()}*
+        `;
 
-      await this.bot.sendMessage(chatId, balanceMessage, {
-        parse_mode: 'Markdown'
-      });
+        await this.bot.sendMessage(chatId, balanceMessage, {
+          parse_mode: 'Markdown'
+        });
+
+      } catch (apiError) {
+        console.error('Error fetching balance:', apiError);
+        await this.bot.sendMessage(chatId, `❌ **Error fetching balance**\n\nAddress: \`${userAddress}\`\n\nCould not fetch wallet balance. Please try again later.\n\nIf the problem persists, contact: @cankat17`);
+      }
 
     } catch (error) {
       console.error('Error in handleBalance:', error);
@@ -229,95 +250,55 @@ Use the buttons below to get started:`;
     try {
       const chatId = msg.chat.id;
       
-      const historyMessage = `
-📊 **Payment History**
-
-*Payment history feature coming soon...*
-
-With this feature you will be able to:
-• View all your payments
-• Check transaction details
-• Filter and search payments
-      `;
-
-      await this.bot.sendMessage(chatId, historyMessage, {
-        parse_mode: 'Markdown'
-      });
-
-    } catch (error) {
-      console.error('Error in handleHistory:', error);
-      await this.sendErrorMessage(msg.chat.id);
-    }
-  }
-
-  private async handlePaymentStatus(msg: any): Promise<void> {
-    try {
-      const chatId = msg.chat.id;
-      console.log(`[DEBUG] Payment status requested for chat ${chatId}`);
-      
       // Check if user has set their address
       const userAddress = this.userAddresses.get(chatId);
       if (!userAddress) {
-        console.log(`[DEBUG] No address set for chat ${chatId}`);
         await this.bot.sendMessage(chatId, `❌ Please set your TON address first!\n\nUse:\n/set_address <your_ton_address>\n\nExample:\n/set_address EQD4FPq-PRDieyQKkizFTRtSDyucUIqrj0v_zXJmqaDp6_0t`);
         return;
       }
 
-      console.log(`[DEBUG] Fetching transactions for address: ${userAddress}`);
-
       // Send loading message
-      await this.bot.sendMessage(chatId, `⏳ Fetching recent transactions...`);
+      await this.bot.sendMessage(chatId, `⏳ Fetching transaction history...`);
 
       try {
-        // Get recent transactions
-        console.log(`[DEBUG] Calling qrService.getTransactions for address: ${userAddress}`);
-        const transactions = await this.qrService.getTransactions(userAddress, 5);
-        console.log(`[DEBUG] Received ${transactions?.length || 0} transactions`);
+        // Get recent transactions from explorer API
+        const transactions = await this.qrService.getTransactions(userAddress, 10);
         
         if (!transactions || transactions.length === 0) {
-          console.log(`[DEBUG] No transactions found for address: ${userAddress}`);
-          await this.bot.sendMessage(chatId, `📊 **Payment Status**\n\nAddress: \`${userAddress}\`\n\nNo recent transactions found.`);
+          await this.bot.sendMessage(chatId, `📊 **Transaction History**\n\nAddress: \`${userAddress}\`\n\nNo transactions found.`);
           return;
         }
 
-        console.log(`[DEBUG] Processing ${transactions.length} transactions`);
-        let statusMessage = `📊 **Payment Status**\n\nAddress: \`${userAddress}\`\n\n**Recent Transactions:**\n\n`;
+        let historyMessage = `📊 **Transaction History**\n\nAddress: \`${userAddress}\`\n\n**Recent Transactions:**\n\n`;
         
         transactions.forEach((tx, index) => {
           try {
-            console.log(`[DEBUG] Processing transaction ${index}:`, tx);
             const amount = parseFloat(tx.in?.amount || '0') / 1e9;
             const time = new Date((tx.time || Date.now() / 1000) * 1000).toLocaleString();
             const source = tx.in?.source || 'unknown';
             const hash = tx.hash || 'unknown';
             
-            statusMessage += `${index + 1}. **${amount} TON**\n`;
-            statusMessage += `   From: \`${source}\`\n`;
-            statusMessage += `   Time: ${time}\n`;
-            statusMessage += `   Hash: \`${hash}\`\n\n`;
+            historyMessage += `${index + 1}. **${amount} TON**\n`;
+            historyMessage += `   From: \`${source}\`\n`;
+            historyMessage += `   Time: ${time}\n`;
+            historyMessage += `   Hash: \`${hash}\`\n\n`;
           } catch (txError) {
             console.error('Error processing transaction:', txError);
-            statusMessage += `${index + 1}. **Error processing transaction**\n\n`;
+            historyMessage += `${index + 1}. **Error processing transaction**\n\n`;
           }
         });
 
-        console.log(`[DEBUG] Sending status message to chat ${chatId}`);
-        await this.bot.sendMessage(chatId, statusMessage, {
+        await this.bot.sendMessage(chatId, historyMessage, {
           parse_mode: 'Markdown'
         });
 
       } catch (apiError) {
-        console.error('Error fetching transactions:', apiError);
-        console.error('Error details:', {
-          message: (apiError as Error).message,
-          stack: (apiError as Error).stack,
-          address: userAddress
-        });
-        await this.bot.sendMessage(chatId, `❌ **Error fetching transactions**\n\nAddress: \`${userAddress}\`\n\nCould not fetch recent transactions. Please try again later.\n\nIf the problem persists, contact: @cankat17`);
+        console.error('Error fetching transaction history:', apiError);
+        await this.bot.sendMessage(chatId, `❌ **Error fetching transaction history**\n\nAddress: \`${userAddress}\`\n\nCould not fetch transaction history. Please try again later.\n\nIf the problem persists, contact: @cankat17`);
       }
 
     } catch (error) {
-      console.error('Error in handlePaymentStatus:', error);
+      console.error('Error in handleHistory:', error);
       await this.sendErrorMessage(msg.chat.id);
     }
   }
@@ -432,7 +413,8 @@ Or use the quick options below:`;
         amount: tonAmount,
         expiresAt,
         notified: false,
-        notifiedTxHashes: []
+        notifiedTxHashes: [],
+        createdAt: Date.now()
       });
 
       // Create QR code data
@@ -626,26 +608,32 @@ If the problem persists, contact our support team:
         if (!payment.notifiedTxHashes) payment.notifiedTxHashes = [];
         console.log(`[DEBUG] Checking payment for chat ${payment.chatId}, address: ${payment.address}`);
         
-        // Check for incoming transactions
+        // Check for incoming transactions using explorer API
         const transactions = await this.qrService.getTransactions(payment.address, 10);
         console.log(`[DEBUG] Found ${transactions.length} transactions for ${payment.address}`);
         
         // Log all transactions for debugging
         transactions.forEach((tx, index) => {
-          const incomingAmount = parseFloat(tx.in.amount) / 1e9;
-          console.log(`[DEBUG] TX ${index}: amount=${incomingAmount}, source=${tx.in.source}, timestamp=${tx.time}, hash=${tx.hash}`);
+          const incomingAmount = parseFloat(tx.in?.amount || '0') / 1e9;
+          console.log(`[DEBUG] TX ${index}: amount=${incomingAmount}, source=${tx.in?.source || 'unknown'}, timestamp=${tx.time}, hash=${tx.hash}`);
         });
         
-        // If there are any transactions, consider it a payment received
+        // Check for new transactions that haven't been notified yet
         for (const tx of transactions) {
-          const incomingAmount = parseFloat(tx.in.amount) / 1e9;
-          if (tx.in.amount && !payment.notifiedTxHashes.includes(tx.hash)) {
-            // Sadece IN (gelen) transactionlar için
-            console.log(`[DEBUG] New IN transaction found: ${tx.hash}`);
-            await this.bot.sendMessage(payment.chatId, `✅ Incoming transaction!\nAmount: ${incomingAmount} TON\nFrom: ${tx.in.source || 'unknown'}\nTime: ${new Date(tx.time * 1000).toLocaleString()}\nHash: ${tx.hash}`);
+          const incomingAmount = parseFloat(tx.in?.amount || '0') / 1e9;
+          const txTime = tx.time * 1000; // Convert to milliseconds
+          
+          // Only notify for transactions that came after payment was created
+          if (tx.in?.amount && !payment.notifiedTxHashes.includes(tx.hash) && txTime >= payment.createdAt) {
+            // New IN transaction found - send notification
+            console.log(`[DEBUG] New IN transaction found: ${tx.hash}, amount: ${incomingAmount} TON, txTime: ${new Date(txTime).toLocaleString()}, createdAt: ${new Date(payment.createdAt).toLocaleString()}`);
+            await this.bot.sendMessage(payment.chatId, `✅ Payment received!\nAmount: ${incomingAmount} TON\nFrom: ${tx.in?.source || 'unknown'}\nTime: ${new Date(txTime).toLocaleString()}\nHash: ${tx.hash}`);
             payment.notifiedTxHashes.push(tx.hash);
+          } else if (tx.in?.amount && !payment.notifiedTxHashes.includes(tx.hash)) {
+            console.log(`[DEBUG] Skipping old transaction: ${tx.hash}, txTime: ${new Date(txTime).toLocaleString()}, createdAt: ${new Date(payment.createdAt).toLocaleString()}`);
           }
         }
+        
       } catch (err) {
         console.error('Error checking payment:', err);
       }

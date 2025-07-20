@@ -19,25 +19,22 @@ export class TONService {
   public async getBalance(address: string): Promise<TONBalance> {
     try {
       this.logger.info(`Getting balance for address: ${address}`);
-
-      const response = await axios.get(`${this.rpcUrl}/getAddressBalance`, {
-        params: { address },
-        headers: {
-          'X-API-Key': this.apiKey
-        }
-      });
-
-      if (!response.data.ok) {
-        throw new Error(`TON API error: ${response.data.error}`);
+      const cleanAddress = address.trim();
+      const explorerUrl = `https://testnet.tonapi.io/v2/blockchain/accounts/${cleanAddress}`;
+      const response = await axios.get(explorerUrl);
+      this.logger.info('[DEBUG] Explorer balance API response', { data: response.data });
+      
+      if (!response.data?.balance) {
+        throw new Error('No balance found in explorer API response');
       }
-
+      
       const balance: TONBalance = {
-        address,
-        balance: response.data.result,
-        lastTransactionId: undefined // Will be populated if needed
+        address: cleanAddress,
+        balance: response.data.balance,
+        lastTransactionId: response.data.last_transaction_id
       };
 
-      this.logger.info(`Balance retrieved for ${address}`, {
+      this.logger.info(`Balance retrieved for ${cleanAddress}`, {
         balance: balance.balance
       });
 
