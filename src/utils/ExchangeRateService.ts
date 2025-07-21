@@ -67,25 +67,51 @@ export class ExchangeRateService {
   }
 
   private async getTONExchangeRate(fromCurrency: string): Promise<ExchangeRate> {
-    // Hardcoded rates for MVP - in production, use real API
-    const rates: Record<string, number> = {
-      'BRL': 0.00015, // 1 BRL = 0.00015 TON
-      'USD': 0.00075, // 1 USD = 0.00075 TON
-      'EUR': 0.00082, // 1 EUR = 0.00082 TON
-      'TON': 1.0,     // 1 TON = 1 TON
-    };
-
-    const rate = rates[fromCurrency];
-    if (!rate) {
+    const supported = ['USD', 'EUR', 'BRL', 'TON'];
+    if (!supported.includes(fromCurrency)) {
       throw new Error(`Unsupported currency: ${fromCurrency}`);
     }
-
-    return {
-      from: fromCurrency,
-      to: 'TON',
-      rate,
-      timestamp: new Date()
-    };
+    if (fromCurrency === 'TON') {
+      return {
+        from: 'TON',
+        to: 'TON',
+        rate: 1.0,
+        timestamp: new Date()
+      };
+    }
+    try {
+      const url = `https://api.coingecko.com/api/v3/simple/price?ids=the-open-network&vs_currencies=usd,eur,brl`;
+      const response = await axios.get(url);
+      const data = response.data;
+      console.log('[CoinGecko API yanıtı]', data); // <-- LOG
+      const price = data['the-open-network'][fromCurrency.toLowerCase()];
+      if (!price || typeof price !== 'number') {
+        console.error('[CoinGecko] Geçersiz fiyat:', price, 'Para birimi:', fromCurrency); // <-- LOG
+        throw new Error('Invalid price from CoinGecko');
+      }
+      const rate = 1 / price;
+      return {
+        from: fromCurrency,
+        to: 'TON',
+        rate,
+        timestamp: new Date()
+      };
+    } catch (error) {
+      console.error('[CoinGecko] Hata:', error); // <-- LOG
+      this.logger.error('Error fetching CoinGecko rate, using fallback', error);
+      const fallbackRates: Record<string, number> = {
+        'BRL': 0.00015,
+        'USD': 0.00075,
+        'EUR': 0.00082,
+        'TON': 1.0,
+      };
+      return {
+        from: fromCurrency,
+        to: 'TON',
+        rate: fallbackRates[fromCurrency] || 0.00075,
+        timestamp: new Date()
+      };
+    }
   }
 
   private async getUSDTExchangeRate(fromCurrency: string): Promise<ExchangeRate> {
